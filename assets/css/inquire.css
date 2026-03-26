@@ -1,0 +1,477 @@
+/* ===========================
+   INQUIRE PAGE
+=========================== */
+
+/* Hero Section */
+.inquire-hero {
+    min-height: 35vh;
+    background: 
+        radial-gradient(80% 120% at -10% -10%, rgba(217,255,0,0.12) 0%, transparent 60%),
+        linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    color: var(--text-light);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 60px 10%;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-content {
+    max-width: 700px;
+    position: relative;
+    z-index: 2;
+}
+
+.hero-icon {
+    width: 80px;
+    height: 80px;
+    background: rgba(217,255,0,0.15);
+    border: 2px solid rgba(217,255,0,0.4);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+}
+
+.hero-icon i {
+    font-size: 36px;
+    color: var(--accent);
+}
+
+.inquire-hero h1 {
+    font-size: 2.5rem;
+    margin: 0 0 12px;
+    font-weight: 700;
+}
+
+.inquire-hero p {
+    font-size: 1.15rem;
+    opacity: 0.95;
+    margin: 0;
+}
+
+.inquire-hero p strong {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* ===========================
+   Form Section
+=========================== */
+.inquire-form {
+    padding: 60px 10%;
+    background: var(--background-light);
+}
+
+.inquire-form .container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: #ffffff;
+    padding: 40px;
+    border-radius: 16px;
+    box-shadow: 0 10px 24px rgba(15, 58, 64, 0.12);
+    border: 1px solid rgba(15,58,64,0.08);
+}
+
+/* Form Header */
+.form-header {
+    text-align: center;
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 2px solid rgba(15,58,64,0.1);
+}
+
+.form-header h2 {
+    font-size: 1.8rem;
+    color: var(--primary-dark);
+    margin: 0 0 8px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.form-header h2 i {
+    color: var(--primary);
+}
+
+.form-header p {
+    font-size: 1rem;
+    color: #5f6c72;
+    margin: 0;
+}
+
+/* Info Card */
+.info-card {
+    background: linear-gradient(135deg, rgba(15,58,64,0.05) 0%, rgba(15,58,64,0.02) 100%);
+    border: 1px solid rgba(15,58,64,0.12);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 32px;
+}
+
+.info-card h3 {
+    font-size: 1.15rem;
+    color: var(--primary-dark);
+    margin: 0 0 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.info-card h3 i {
+    color: var(--primary);
+}
+
+.service-display {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.service-display label {
+    font-size: 0.85rem;
+    color: #5f6c72;
+    font-weight: 600;
+    margin: 0;
+}
+
+.service-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px;
+    background: #ffffff;
+    border: 1px solid rgba(15,58,64,0.15);
+    border-radius: 10px;
+    font-weight: 700;
+    color: var(--primary-dark);
+}
+
+.service-badge i {
+    color: var(--primary);
+    font-size: 1.1rem;
+}
+
+/* Requirements Section */
+.requirements-section {
+    margin-bottom: 32px;
+}
+
+.requirements-section h3 {
+    font-size: 1.3rem;
+    color: var(--primary-dark);
+    margin: 0 0 8px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.requirements-section h3 i {
+    color: var(--primary);
+}
+
+.section-subtitle {
+    font-size: 0.95rem;
+    color: #5f6c72;
+    margin: 0 0 20px;
+}
+
+/* Requirement Block */
+.requirement-block {
+    background: #f8fbfb;
+    border: 1px solid rgba(15,58,64,0.12);
+    border-left: 4px solid var(--primary);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+}
+
+.requirement-block:hover {
+    box-shadow: 0 4px 12px rgba(15, 58, 64, 0.08);
+    transform: translateY(-2px);
+}
+
+.req-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.req-number {
+    width: 32px;
+    height: 32px;
+    background: var(--primary);
+    color: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.req-header label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--primary-dark);
+    margin: 0;
+}
+
+/* Form Group */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #445156;
+    margin-bottom: 8px;
+}
+
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid rgba(15,58,64,0.2);
+    border-radius: 10px;
+    font-size: 0.95rem;
+    color: var(--text-dark);
+    background: #ffffff;
+    transition: all 0.2s ease;
+}
+
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(15,58,64,0.1);
+    outline: none;
+}
+
+.form-group textarea {
+    resize: vertical;
+    font-family: inherit;
+}
+
+/* File Upload Group */
+.file-upload-group {
+    position: relative;
+}
+
+.file-upload-group input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+    z-index: -1;
+}
+
+.file-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: #ffffff;
+    border: 2px dashed rgba(15,58,64,0.25);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.file-label:hover {
+    border-color: var(--primary);
+    background: rgba(15,58,64,0.02);
+}
+
+.file-label i {
+    font-size: 2rem;
+    color: var(--primary);
+    margin-bottom: 8px;
+}
+
+.file-text {
+    font-size: 0.95rem;
+    color: #5f6c72;
+    font-weight: 500;
+}
+
+.file-name {
+    display: none;
+    font-size: 0.9rem;
+    color: var(--primary-dark);
+    font-weight: 600;
+    margin-top: 8px;
+    word-break: break-all;
+}
+
+.file-label.has-file {
+    border-color: var(--primary);
+    background: rgba(15,58,64,0.05);
+}
+
+.file-label.has-file i {
+    color: var(--accent);
+}
+
+.file-note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: #5f6c72;
+}
+
+.file-note i {
+    color: var(--primary);
+}
+
+/* Notes Section */
+.notes-section {
+    margin-bottom: 32px;
+}
+
+.notes-section h3 {
+    font-size: 1.2rem;
+    color: var(--primary-dark);
+    margin: 0 0 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.notes-section h3 i {
+    color: var(--primary);
+}
+
+/* Form Actions */
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding-top: 24px;
+    border-top: 1px solid rgba(15,58,64,0.1);
+}
+
+.btn-primary,
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    color: var(--text-light);
+    box-shadow: 0 4px 12px rgba(15, 58, 64, 0.2);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(15, 58, 64, 0.25);
+}
+
+.btn-secondary {
+    background: #f3f6f6;
+    color: var(--primary-dark);
+    border: 1px solid rgba(15,58,64,0.15);
+}
+
+.btn-secondary:hover {
+    background: #e9f1f1;
+    transform: translateY(-1px);
+}
+
+/* Responsive Design */
+@media screen and (max-width: 768px) {
+    .inquire-hero {
+        padding: 40px 6%;
+        min-height: 30vh;
+    }
+
+    .inquire-hero h1 {
+        font-size: 2rem;
+    }
+
+    .inquire-hero p {
+        font-size: 1rem;
+    }
+
+    .hero-icon {
+        width: 60px;
+        height: 60px;
+    }
+
+    .hero-icon i {
+        font-size: 28px;
+    }
+
+    .inquire-form {
+        padding: 40px 6%;
+    }
+
+    .inquire-form .container {
+        padding: 24px 20px;
+    }
+
+    .form-header h2 {
+        font-size: 1.4rem;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .requirements-section h3 {
+        font-size: 1.15rem;
+    }
+
+    .form-actions {
+        flex-direction: column-reverse;
+    }
+
+    .btn-primary,
+    .btn-secondary {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .req-header {
+        flex-wrap: wrap;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .inquire-hero h1 {
+        font-size: 1.6rem;
+    }
+
+    .service-badge {
+        font-size: 0.9rem;
+        padding: 10px 14px;
+    }
+}

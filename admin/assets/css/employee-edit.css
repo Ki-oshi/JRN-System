@@ -1,0 +1,17 @@
+/* Import base styles */
+@import url('employee-add.css');
+
+/* Additional styles specific to edit page */
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.card-header > div {
+    flex: 1;
+}
+
+.card-header .status {
+    flex-shrink: 0;
+}

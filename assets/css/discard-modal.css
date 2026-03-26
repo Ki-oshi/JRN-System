@@ -1,0 +1,82 @@
+/* assets/css/discard-modal.css */
+
+.discard-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.discard-modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.discard-modal {
+    background: var(--background-light);
+    color: var(--text-dark);
+    width: 90%;
+    max-width: 400px;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    transform: translateY(-20px);
+    transition: transform 0.3s ease;
+}
+
+.discard-modal-overlay.active .discard-modal {
+    transform: translateY(0);
+}
+
+.discard-modal h3 {
+    margin-bottom: 0.5rem;
+    font-size: 1.5rem;
+    color: var(--primary);
+}
+
+.discard-modal p {
+    margin-bottom: 1.5rem;
+    color: var(--text-dark);
+    font-size: 1rem;
+}
+
+.discard-modal-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.discard-modal-buttons .confirm-btn {
+    background: var(--primary);
+    color: var(--text-light);
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.discard-modal-buttons .confirm-btn:hover {
+    background: var(--primary-dark);
+}
+
+.discard-modal-buttons .cancel-btn {
+    background: var(--background-alt);
+    color: var(--text-dark);
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.discard-modal-buttons .cancel-btn:hover {
+    background: #dcefed;
+}

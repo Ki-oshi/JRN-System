@@ -1,0 +1,148 @@
+/* ========================================
+   billing-add.css
+   ======================================== */
+
+/* Back link */
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.25rem;
+    text-decoration: none;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.back-link:hover {
+    color: var(--primary);
+    transform: translateX(-2px);
+}
+
+.back-link svg {
+    flex-shrink: 0;
+}
+
+/* Card specifically for add-invoice form */
+
+.add-invoice-card .card-header h2 {
+    font-size: 1.1rem;
+}
+
+.add-invoice-card .card-body {
+    padding: 1.5rem;
+}
+
+/* Grids */
+
+.form-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.form-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+/* Required star */
+
+.required {
+    color: var(--danger);
+}
+
+/* Form hints */
+
+.form-hint {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* Invoice form base */
+
+.invoice-form .form-group {
+    margin-bottom: 1rem;
+}
+
+.invoice-form .form-group label {
+    display: block;
+    margin-bottom: 0.45rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+}
+
+/* Inputs / selects / textareas */
+
+.invoice-form .form-control {
+    width: 100%;
+    padding: 0.75rem 0.9rem;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-family: inherit;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.invoice-form .form-control--lg {
+    padding: 0.85rem 0.95rem;
+    font-size: 0.9rem;
+}
+
+.invoice-form .form-control--textarea {
+    min-height: 120px;
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.invoice-form .form-control:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px rgba(15, 118, 110, 0.15);
+}
+
+/* Actions row */
+
+.form-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+/* Primary button emphasis */
+
+.form-actions .btn.btn--primary {
+    box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25);
+}
+
+.form-actions .btn.btn--primary:hover {
+    box-shadow: 0 6px 16px rgba(15, 118, 110, 0.35);
+}
+
+/* Responsive */
+
+@media (max-width: 900px) {
+    .form-grid-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .form-grid-2 {
+        grid-template-columns: 1fr;
+    }
+    .form-grid-3 {
+        grid-template-columns: 1fr;
+    }
+}

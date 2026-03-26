@@ -1,0 +1,317 @@
+/* ===========================
+   GLOBAL RESPONSIVE CSS
+=========================== */
+
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 10%;
+    background: #0F3A40;
+    color: #fff;
+}
+
+@media (max-width: 992px) {
+    .footer {
+        text-align: center;
+        padding: 20px 10px;
+        font-size: 0.9rem;
+    }
+}
+
+/* ===========================
+   HERO SECTION
+=========================== */
+@media (max-width: 992px) {
+    .hero-content h1 {
+        font-size: 2rem;
+        line-height: 1.3;
+    }
+
+    .hero-content p {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .hero {
+        padding: 60px 20px;
+        text-align: center;
+    }
+
+    .hero-content h1 {
+        font-size: 1.6rem;
+    }
+
+    .hero-content p {
+        font-size: 0.95rem;
+    }
+
+    .hero-content .btn {
+        display: inline-block;
+        margin-top: 15px;
+    }
+}
+
+/* ===========================
+   SERVICES SECTION
+=========================== */
+@media (max-width: 992px) {
+    .services-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .services-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .service-card {
+        text-align: center;
+    }
+}
+
+/* ===========================
+   ABOUT SECTION
+=========================== */
+@media (max-width: 768px) {
+    .about-content {
+        padding: 20px;
+        text-align: center;
+    }
+}
+
+/* ===========================
+   AUTH PAGE (Login/Signup)
+=========================== */
+@media (max-width: 992px) {
+    .form-card.dual-forms {
+        grid-template-columns: 1fr;
+        gap: 30px;
+        max-width: 480px;
+    }
+
+    .or-divider {
+        text-align: center;
+        margin: 0 auto;
+    }
+}
+
+@media (max-width: 768px) {
+    .form-box {
+        padding: 20px;
+    }
+
+    .form-box h2 {
+        font-size: 1.3rem;
+    }
+
+    .form-intro {
+        font-size: 0.9rem;
+    }
+
+    .form-box input,
+    .form-box button {
+        font-size: 0.9rem;
+        padding: 10px;
+    }
+}
+
+/* ===========================
+   HAMBURGER MENU STYLES
+=========================== */
+.hamburger {
+    display: none;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    width: 28px;
+    height: 22px;
+    z-index: 1100;
+    color: #fff;
+}
+
+.hamburger span {
+    display: block;
+    width: 100%;
+    height: 3px;
+    background: currentColor;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+    transform-origin: center;
+}
+
+/* Mobile Nav */
+@media (max-width: 992px) {
+    .navbar {
+        display: flex;
+        align-items: center;
+        padding: 18px 10%;
+        position: relative;
+    }
+
+    .logo {
+        flex-shrink: 0;
+    }
+
+    .hamburger {
+        display: flex;
+        margin-left: auto;
+    }
+
+    /* Light navbar option */
+    .navbar.light .hamburger {
+        color: #112D4E;
+    }
+
+    .nav-links {
+        position: absolute;
+        top: 70px;
+        right: 10%;
+        background: var(--primary);
+        flex-direction: column;
+        align-items: flex-start;
+        width: 220px;
+        padding: 15px;
+        gap: 15px;
+        border-radius: 0 0 10px 10px;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        display: none;
+        z-index: 1000;
+    }
+
+    .nav-links.active {
+        display: flex;
+        animation: slideDown 0.3s ease forwards;
+    }
+}
+
+/* Hamburger Animation - Perfect Symmetrical X */
+.hamburger.active span:nth-child(1) {
+    transform: rotate(45deg);
+    position: relative;
+    top: 9px;
+}
+.hamburger.active span:nth-child(2) {
+    opacity: 0;
+}
+.hamburger.active span:nth-child(3) {
+    transform: rotate(-45deg);
+    position: relative;
+    top: -9px;
+}
+
+/* Slide-down animation */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+/* ===========================
+   FOOTER RESPONSIVE
+=========================== */
+@media (max-width: 992px) {
+    .footer-top {
+        flex-direction: column;
+        align-items: center;
+        padding: 30px 5%;
+        gap: 20px;
+    }
+
+    .footer-logo-desc {
+        max-width: 100%;
+        text-align: center;
+    }
+
+    .footer-logo-name {
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: nowrap;
+    }
+
+    .footer-links {
+        flex-direction: column;
+        gap: 20px;
+        align-items: center;
+    }
+
+    .footer-column h4 {
+        text-align: center;
+    }
+
+    .footer-column ul {
+        text-align: center;
+        padding: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .footer-top {
+        padding: 20px 5%;
+        gap: 15px;
+    }
+
+    .footer-logo-name {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .footer-logo-name h3 {
+        white-space: normal; /* allow line break for very small screens */
+        text-align: center;
+    }
+
+    .footer-logo-desc p {
+        text-align: justify;
+        font-size: 0.85rem;
+    }
+
+    .footer-socials {
+        justify-content: center;
+    }
+
+    .footer-links {
+        gap: 15px;
+    }
+
+    .footer-column ul li a {
+        font-size: 0.85rem;
+    }
+
+    .footer-bottom {
+        font-size: 0.75rem;
+    }
+}
+
+/* Footer logo & name stack on small screens */
+@media (max-width: 768px) {
+    .footer-logo-name {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .footer-logo-name img {
+        margin-bottom: 10px;
+    }
+
+    .footer-logo-desc p,
+    .footer-contact {
+        text-align: center;
+    }
+
+    .footer-socials {
+        justify-content: center;
+    }
+}

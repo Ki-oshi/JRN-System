@@ -1,0 +1,143 @@
+/* ========================================
+   JRN SIGNUP MODAL - USER LANDING DESIGN
+   Uses landing page color variables
+======================================== */
+
+/* Import landing page variables if not already in the page */
+:root {
+    --primary: #0f3a40;
+    --secondary: #1c5a63;
+    --accent: #bfe600;
+    --background-light: #f5f7fa;
+    --background-alt: #e5e7eb;
+    --text-light: #ffffff;
+    --text-dark: #2c3e50;
+    --primary-dark: #0a2a2f;
+}
+
+/* Modal backdrop */
+.signup-modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0; top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(44,62,80,0.18);  /* softer dark overlay */
+    backdrop-filter: blur(2px);
+    justify-content: center;
+    align-items: center;
+    transition: background 0.3s;
+}
+
+/* Modal content */
+.signup-modal-content {
+    background: var(--background-light);
+    padding: 2rem 2rem 1.5rem 2rem;
+    border-radius: 14px;
+    text-align: center;
+    width: 95%;
+    max-width: 360px;
+    box-shadow: 0 6px 32px rgba(44,62,80,0.13);
+    color: var(--text-dark);
+    border: 1px solid var(--background-alt);
+    font-family: inherit;
+    position: relative;
+    animation: slideUp 0.2s cubic-bezier(.53,1.5,.55,1);
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px);}
+    to   { opacity: 1; transform: translateY(0);}
+}
+
+.signup-modal-content h2 {
+    font-size: 1.4rem;
+    margin-bottom: 20px;
+    color: var(--primary-dark);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.signup-modal-content form > *:not(:last-child) {
+    margin-bottom: 18px;
+}
+
+/* Loader spinner, matching accent color */
+.loader {
+    border: 6px solid var(--background-alt);
+    border-top: 6px solid var(--accent);
+    border-radius: 50%;
+    width: 44px; height: 44px;
+    margin: 22px auto;
+    animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg);}
+    100% { transform: rotate(360deg);}
+}
+
+#signup-message {
+    margin-top: 16px;
+    font-size: 1rem;
+    color: var(--primary-dark);
+    font-weight: 500;
+}
+
+/* Inputs and buttons styling */
+.signup-modal-content input[type="text"],
+.signup-modal-content input[type="email"],
+.signup-modal-content input[type="password"] {
+    width: 100%;
+    padding: 0.7rem 1rem;
+    border: 1px solid var(--background-alt);
+    border-radius: 8px;
+    font-size: 1rem;
+    background: #fff;
+    color: var(--text-dark);
+    transition: border-color 0.2s;
+    font-family: inherit;
+}
+
+.signup-modal-content input:focus {
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+/* Signup button */
+.signup-modal-content button,
+.signup-modal-content .btn {
+    background: var(--accent);
+    color: var(--primary-dark);
+    font-weight: 600;
+    border: none;
+    padding: 12px 0;
+    border-radius: 8px;
+    width: 100%;
+    font-size: 1.08rem;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: all 0.2s;
+    margin-top: 5px;
+    letter-spacing: 0.012em;
+}
+
+.signup-modal-content button:hover,
+.signup-modal-content .btn:hover {
+    background: #9ec700;
+    color: var(--primary);
+    transform: translateY(-1.5px) scale(1.01);
+    box-shadow: 0 6px 18px rgba(15,58,64, 0.08);
+}
+
+@media (max-width: 480px) {
+    .signup-modal-content {
+        padding: 1.1rem 0.5rem 1.3rem 0.5rem;
+        border-radius: 10px;
+    }
+    .signup-modal-content h2 { font-size: 1.12rem;}
+    .signup-modal-content button,
+    .signup-modal-content .btn { font-size: 1rem; }
+}
