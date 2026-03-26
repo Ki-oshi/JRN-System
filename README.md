@@ -135,7 +135,7 @@ It is designed to be modular and scalable for future enhancements.
 ## 👨‍💻 Developer
 
 **Kioshi (Lean Joshua Aclan)**
-Full-stack Developer focused on building business systems and web applications.
+Student Developer focused on building business systems and web applications.
 
 ---
 
