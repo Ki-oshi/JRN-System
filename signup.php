@@ -144,7 +144,7 @@ blockIfLoggedIn();
                                 <input type="checkbox" name="terms" required>
                                 <span class="checkmark"></span>
                                 <span class="checkbox-text">
-                                    I agree to the <a href="#" target="_blank">Terms & Conditions</a> and <a href="#" target="_blank">Privacy Policy</a>
+                                    I agree to the <a href="terms.php" target="_blank">Terms & Conditions</a> and <a href="privacy.php" target="_blank">Privacy Policy</a>
                                 </span>
                             </label>
                         </div>

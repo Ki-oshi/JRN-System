@@ -100,6 +100,7 @@ $socialLinks = [
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <title>Inquiry Submission Summary | JRN Business Solutions Co.</title>
@@ -110,6 +111,7 @@ $socialLinks = [
     <link rel="stylesheet" href="assets/css/inquiry-summary.css" />
     <script src="https://kit.fontawesome.com/a2e0e6d6f3.js" crossorigin="anonymous"></script>
 </head>
+
 <body>
     <header class="navbar">
         <div class="logo-container">

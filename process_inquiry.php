@@ -1,12 +1,16 @@
 <?php
 session_start();
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
 require_once __DIR__ . '/connection/dbconn.php';
 require_once __DIR__ . '/includes/helpers.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/encryption_key.php';
 require_once __DIR__ . '/includes/activity_logger.php';
 
-// AES‑256 key from config/encryption.key
+// AES-256 key from config/encryption.key
 $FILE_KEY = get_file_encryption_key();
 
 // Check if user is logged in
@@ -32,7 +36,7 @@ if (empty($service_slug)) {
     exit();
 }
 
-// Fetch service by slug
+// Fetch service
 $stmt = $conn->prepare("
     SELECT name, price 
     FROM services 
@@ -54,200 +58,243 @@ $service_name = $service_data['name'];
 $price = $service_data['price'];
 $stmt->close();
 
-// Validation
-if (empty($service_name)) {
-    $_SESSION['error'] = "Service name is required.";
-    header("Location: " . $_SERVER['HTTP_REFERER']);
-    exit();
-}
-
-// Create uploads directory if it doesn't exist
+// Upload setup
 $upload_base_dir = 'uploads/inquiries/';
-if (!file_exists($upload_base_dir)) {
-    mkdir($upload_base_dir, 0755, true);
-}
+if (!file_exists($upload_base_dir)) mkdir($upload_base_dir, 0755, true);
 
-// Create user-specific directory
 $user_upload_dir = $upload_base_dir . $user_id . '/';
-if (!file_exists($user_upload_dir)) {
-    mkdir($user_upload_dir, 0755, true);
-}
+if (!file_exists($user_upload_dir)) mkdir($user_upload_dir, 0755, true);
 
-// Create inquiry-specific directory with timestamp
 $inquiry_timestamp = date('Y-m-d_His');
 $inquiry_dir = $user_upload_dir . $inquiry_timestamp . '_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $service_name) . '/';
-if (!file_exists($inquiry_dir)) {
-    mkdir($inquiry_dir, 0755, true);
-}
+if (!file_exists($inquiry_dir)) mkdir($inquiry_dir, 0755, true);
 
-// Allowed file types and max size
+// File validation
 $allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png'];
-$max_file_size = 5 * 1024 * 1024; // 5MB
+$max_file_size = 5 * 1024 * 1024;
 $uploaded_files = [];
 $errors = [];
 
-// Debug: Check if files are being uploaded
-if (isset($_FILES['requirements_files']) && is_array($_FILES['requirements_files']['name'])) {
-    foreach ($_FILES['requirements_files']['name'] as $index => $filename) {
-        if (empty($filename)) {
-            continue;
-        }
+foreach ($_FILES['requirements_files']['name'] as $index => $filename) {
+    if (empty($filename)) continue;
 
-        $file_tmp = $_FILES['requirements_files']['tmp_name'][$index];
-        $file_size = $_FILES['requirements_files']['size'][$index];
-        $file_error = $_FILES['requirements_files']['error'][$index];
+    $tmp = $_FILES['requirements_files']['tmp_name'][$index];
+    $size = $_FILES['requirements_files']['size'][$index];
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
-        // Debug: Output error for each file
-        if ($file_error !== UPLOAD_ERR_OK) {
-            $errors[] = "Error uploading file: $filename (Error Code: $file_error)";
-            continue;
-        }
+    if ($size > $max_file_size) continue;
+    if (!in_array($ext, $allowed_extensions)) continue;
 
-        // Validate file size
-        if ($file_size > $max_file_size) {
-            $errors[] = "File '$filename' exceeds 5MB limit";
-            continue;
-        }
+    $safe = preg_replace('/[^a-zA-Z0-9_.-]/', '_', pathinfo($filename, PATHINFO_FILENAME));
+    $new_name = $safe . '_' . uniqid() . '.' . $ext;
+    $destination = $inquiry_dir . $new_name;
 
-        // Validate file extension
-        $file_extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        if (!in_array($file_extension, $allowed_extensions)) {
-            $errors[] = "Invalid file type for '$filename'. Only PDF, JPG, and PNG are allowed.";
-            continue;
-        }
+    $plaintext = file_get_contents($tmp);
+    $iv = random_bytes(16);
+    $cipher = openssl_encrypt($plaintext, 'AES-256-CBC', $FILE_KEY, OPENSSL_RAW_DATA, $iv);
 
-        // Generate safe filename
-        $safe_filename = preg_replace('/[^a-zA-Z0-9_.-]/', '_', pathinfo($filename, PATHINFO_FILENAME));
-        $new_filename = $safe_filename . '_' . uniqid() . '.' . $file_extension;
-        $destination = $inquiry_dir . $new_filename;
+    file_put_contents($destination, $cipher);
 
-        // Read uploaded file contents
-        $plaintext = file_get_contents($file_tmp);
-        if ($plaintext === false) {
-            $errors[] = "Failed to read uploaded file: $filename";
-            continue;
-        }
-
-        // AES‑256‑CBC encryption
-        $iv = random_bytes(16);
-        $ciphertext = openssl_encrypt($plaintext, 'AES-256-CBC', $FILE_KEY, OPENSSL_RAW_DATA, $iv);
-        if ($ciphertext === false) {
-            $errors[] = "Failed to encrypt file: $filename";
-            continue;
-        }
-
-        // Save encrypted file
-        if (file_put_contents($destination, $ciphertext) === false) {
-            $errors[] = "Failed to save file: $filename";
-            continue;
-        }
-
-        $uploaded_files[] = [
-            'index' => $index,
-            'original_name' => $filename,
-            'stored_name' => $new_filename,
-            'path' => $destination,
-            'id_type' => $_POST["id_type_$index"] ?? null,
-            'file_size' => $file_size,
-            'file_type' => $file_extension,
-            'iv' => $iv,
-        ];
-    }
-} else {
-    $errors[] = "No files were uploaded.";
+    $uploaded_files[] = [
+        'original_name' => $filename,
+        'path' => $destination,
+        'file_size' => $size,
+        'file_type' => $ext,
+        'iv' => $iv,
+    ];
 }
 
-// Debug: Output any errors
-if (!empty($errors)) {
-    $_SESSION['error'] = implode('<br>', $errors);
-    header("Location: " . $_SERVER['HTTP_REFERER']);
-    exit();
-}
-
-// Check if any files were uploaded
-if (empty($uploaded_files) && empty($errors)) {
-    $_SESSION['error'] = "Please upload at least one required document.";
-    header("Location: " . $_SERVER['HTTP_REFERER']);
-    exit();
-}
-
-// If there were errors, clean up and redirect
-if (!empty($errors)) {
-    foreach ($uploaded_files as $file) {
-        if (file_exists($file['path'])) {
-            unlink($file['path']);
-        }
-    }
-    if (is_dir($inquiry_dir) && count(scandir($inquiry_dir)) == 2) {
-        rmdir($inquiry_dir);
-    }
-
-    $_SESSION['error'] = implode('<br>', $errors);
-    header("Location: " . $_SERVER['HTTP_REFERER']);
-    exit();
-}
-
-// Begin database transaction
 $conn->begin_transaction();
 
 try {
-    // Generate unique inquiry number
     $inquiry_number = generateInquiryNumber($conn);
 
-    // Insert inquiry record
     $stmt = $conn->prepare("
         INSERT INTO inquiries 
         (inquiry_number, user_id, service_name, price, additional_notes, status, created_at) 
         VALUES (?, ?, ?, ?, ?, 'pending', NOW())
     ");
-    $stmt->bind_param(
-        "sisds",
-        $inquiry_number,
-        $user_id,
-        $service_name,
-        $price,
-        $additional_notes
-    );
+    $stmt->bind_param("sisds", $inquiry_number, $user_id, $service_name, $price, $additional_notes);
     $stmt->execute();
     $inquiry_id = $conn->insert_id;
     $stmt->close();
 
-    logActivity(
-        $_SESSION['user_id'],
-        'user',
-        'inquiry_created',
-        'Created inquiry ' . $inquiry_number . ' for service ' . $service_name
-    );
+    logActivity($user_id, 'user', 'inquiry_created', 'Created inquiry ' . $inquiry_number);
 
-    // Insert uploaded files records with IV
+    // Save files
     $stmt = $conn->prepare("
         INSERT INTO inquiry_documents 
-        (inquiry_id, file_name, file_path, id_type, file_size, file_type, iv, uploaded_at) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+        (inquiry_id, file_name, file_path, file_size, file_type, iv, uploaded_at) 
+        VALUES (?, ?, ?, ?, ?, ?, NOW())
     ");
 
     foreach ($uploaded_files as $file) {
-        $relative_path = str_replace('../', '', $file['path']);
-        // i s s s i s b (iv as binary param)
-        $stmt->bind_param(
-            "isssisb",
-            $inquiry_id,
-            $file['original_name'],
-            $relative_path,
-            $file['id_type'],
-            $file['file_size'],
-            $file['file_type'],
-            $file['iv']
-        );
-        $stmt->send_long_data(6, $file['iv']);
+        $stmt->bind_param("issisb", $inquiry_id, $file['original_name'], $file['path'], $file['file_size'], $file['file_type'], $file['iv']);
+        $stmt->send_long_data(5, $file['iv']);
         $stmt->execute();
     }
-    $stmt->close();
 
-    // Commit transaction
+    $stmt->close();
     $conn->commit();
 
-    // Store summary in session
+    // =========================
+    // ✅ EMAIL STARTS HERE
+    // =========================
+    require __DIR__ . '/PHPMailer/vendor/autoload.php';
+
+
+    $user_stmt = $conn->prepare("SELECT fullname, email FROM users WHERE id = ?");
+    $user_stmt->bind_param("i", $user_id);
+    $user_stmt->execute();
+    $user = $user_stmt->get_result()->fetch_assoc();
+
+    if ($user) {
+        $mail = new PHPMailer(true);
+
+        try {
+            $mail->isSMTP();
+            $mail->Host = 'smtp.gmail.com';
+            $mail->SMTPAuth = true;
+            $mail->Username = 'kioshiiofficial@gmail.com';
+            $mail->Password = 'jzri aqgh tovz hepu';
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port = 587;
+
+            $mail->setFrom('kioshiiofficial@gmail.com', 'JRN Business Solutions');
+            $mail->addAddress($user['email'], $user['fullname']);
+
+            $mail->isHTML(true);
+            $mail->Subject = 'Inquiry Submitted | JRN Business Solutions';
+
+            $fullname = $user['fullname'];
+            $mail->Body = "
+                    <!DOCTYPE html>
+                    <html lang='en'>
+                    <head>
+                        <meta charset='UTF-8'>
+                        <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+                    </head>
+                    <body style='margin: 0; padding: 0; background-color: #f9f7f7; font-family: Poppins, Arial, sans-serif;'>
+                        <table width='100%' cellpadding='0' cellspacing='0' style='background-color: #f9f7f7; padding: 40px 20px;'>
+                            <tr>
+                                <td align='center'>
+                                    <table width='600' cellpadding='0' cellspacing='0' style='background: linear-gradient(135deg, #0F3A40 0%, #1C4F50 100%); border-radius: 20px; overflow: hidden; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);'>
+                                        
+                                        <!-- Header -->
+                                        <tr>
+                                            <td style='padding: 40px 40px 30px; text-align: center; border-bottom: 2px solid rgba(217, 255, 0, 0.3);'>
+                                                <img src='assets/img/Logo.jpg' alt='JRN Logo' style='width: 90px; height: 90px; border-radius: 50%; border: 3px solid rgba(217, 255, 0, 0.4); margin-bottom: 16px;'>
+                                                <h1 style='color: #D9FF00; font-size: 24px; margin: 0; font-weight: 700; letter-spacing: -0.5px;'>
+                                                    JRN Business Solutions Co.
+                                                </h1>
+                                            </td>
+                                        </tr>
+                                        
+                                        <!-- Main Content -->
+                                        <tr>
+                                            <td style='padding: 40px; color: #ffffff;'>
+                                                <h2 style='color: #D9FF00; font-size: 26px; margin: 0 0 16px; text-align: center; font-weight: 700;'>
+                                                    Hello, $fullname!
+                                                </h2>
+                                                
+                                                <p style='color: rgba(255, 255, 255, 0.95); font-size: 16px; line-height: 1.7; margin: 0 0 24px; text-align: center;'>
+                                                    Your inquiry has been successfully submitted to JRN Business Solutions Co.
+                                                </p>
+                                                
+                                                <p style='color: rgba(255, 255, 255, 0.9); font-size: 15px; line-height: 1.6; margin: 0 0 32px; text-align: center;'>
+                                                    Our team is currently reviewing your request. You can track your inquiry anytime through your dashboard.
+                                                </p>
+                                                
+                                                <!-- Inquiry Details -->
+                                                <table width='100%' cellpadding='0' cellspacing='0' style='margin: 32px 0; background: rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 24px; border: 1px solid rgba(255, 255, 255, 0.1);'>
+                                                    <tr>
+                                                        <td>
+                                                            <p style='color: #D9FF00; font-size: 15px; font-weight: 600; margin: 0 0 16px; text-align: center;'>
+                                                                Inquiry Details
+                                                            </p>
+                                                            <table width='100%' cellpadding='8' cellspacing='0'>
+                                                                <tr>
+                                                                    <td style='color: rgba(255, 255, 255, 0.9); font-size: 14px;'>
+                                                                        <strong>Inquiry Number:</strong> $inquiry_number
+                                                                    </td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td style='color: rgba(255, 255, 255, 0.9); font-size: 14px;'>
+                                                                        <strong>Service:</strong> $service_name
+                                                                    </td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td style='color: rgba(255, 255, 255, 0.9); font-size: 14px;'>
+                                                                        <strong>Date:</strong> " . date('F j, Y, g:i a') . "
+                                                                    </td>
+                                                                </tr>
+                                                            </table>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                                
+                                                <p style='color: rgba(255, 255, 255, 0.9); font-size: 14px; text-align: center;'>
+                                                    Thank you for trusting us with your business needs.
+                                                </p>
+                                            </td>
+                                        </tr>
+                                        
+                                        <!-- Security Notice -->
+                                        <tr>
+                                            <td style='padding: 24px 40px; background: rgba(0, 0, 0, 0.2); border-top: 1px solid rgba(255, 255, 255, 0.1);'>
+                                                <p style='color: rgba(255, 255, 255, 0.8); font-size: 14px; line-height: 1.6; margin: 0; text-align: center;'>
+                                                    🔒 <strong>Security Notice:</strong> If you did not submit this inquiry, please ignore this email.
+                                                </p>
+                                            </td>
+                                        </tr>
+                                        
+                                        <!-- Footer -->
+                                        <tr>
+                                            <td style='padding: 30px 40px; background: #0B2B2E; text-align: center;'>
+                                                <p style='color: rgba(255, 255, 255, 0.6); font-size: 13px; margin: 0 0 12px; line-height: 1.6;'>
+                                                    This is an automated message from <strong style='color: #D9FF00;'>JRN Business Solutions Co.</strong><br>
+                                                    Please do not reply directly to this email.
+                                                </p>
+                                                <p style='color: rgba(255, 255, 255, 0.5); font-size: 12px; margin: 0;'>
+                                                    © " . date('Y') . " JRN Business Solutions Co. All Rights Reserved.
+                                                </p>
+                                                
+                                                <table width='100%' cellpadding='0' cellspacing='0' style='margin-top: 20px;'>
+                                                    <tr>
+                                                        <td align='center'>
+                                                            <a href='#' style='display: inline-block; margin: 0 8px;'>
+                                                                <img src='assets/img/icons/Facebook.svg' style='width: 24px; opacity: 0.6;'>
+                                                            </a>
+                                                            <a href='#' style='display: inline-block; margin: 0 8px;'>
+                                                                <img src='assets/img/icons/Twitter.svg' style='width: 24px; opacity: 0.6;'>
+                                                            </a>
+                                                            <a href='#' style='display: inline-block; margin: 0 8px;'>
+                                                                <img src='assets/img/icons/Instagram.svg' style='width: 24px; opacity: 0.6;'>
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                        
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </body>
+                    </html>
+                    ";
+
+            $mail->send();
+        } catch (Exception $e) {
+            error_log("Email error: " . $mail->ErrorInfo);
+        }
+    }
+
+    // =========================
+    // END EMAIL
+    // =========================
+
     $_SESSION['inquiry_summary'] = [
         'inquiry_number' => $inquiry_number,
         'service_name' => $service_name,
@@ -256,24 +303,13 @@ try {
         'uploaded_files' => $uploaded_files,
         'user_id' => $user_id
     ];
+
     header("Location: inquiry_summary.php");
     exit();
 } catch (Exception $e) {
-    // Rollback transaction
     $conn->rollback();
-
-    // Clean up uploaded files
-    foreach ($uploaded_files as $file) {
-        if (file_exists($file['path'])) {
-            unlink($file['path']);
-        }
-    }
-    if (is_dir($inquiry_dir) && count(scandir($inquiry_dir)) == 2) {
-        rmdir($inquiry_dir);
-    }
-
-    error_log("Inquiry submission error: " . $e->getMessage());
-    $_SESSION['error'] = "An error occurred while processing your inquiry. Please try again.";
+    error_log($e->getMessage());
+    $_SESSION['error'] = "Something went wrong.";
     header("Location: " . $_SERVER['HTTP_REFERER']);
     exit();
 }
