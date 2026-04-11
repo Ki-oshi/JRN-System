@@ -13,13 +13,12 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $user = null;
 
-// Check which table to query based on account_type
 if (isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'employee') {
     header("Location: admin/index-admin.php");
     exit;
 } else {
     $stmt = $conn->prepare("
-        SELECT fullname, first_name, last_name, username, email, phone, address, city, state, postal_code, 
+        SELECT fullname, first_name, last_name, username, email, phone, address, city, state, postal_code,
                created_at, account_number, role, status
         FROM users WHERE id = ?
     ");
@@ -44,18 +43,10 @@ $first_initial = !empty($user['first_name'])
     ? strtoupper(substr($user['first_name'], 0, 1))
     : strtoupper(substr($user['fullname'] ?? $user['username'] ?? 'U', 0, 1));
 
-$status_display = [
-    'active' => 'Active',
-    'inactive' => 'Inactive',
-    'suspended' => 'Suspended'
-];
+$status_display = ['active' => 'Active', 'inactive' => 'Inactive', 'suspended' => 'Suspended'];
 $current_status = $status_display[$user['status'] ?? 'active'] ?? 'Unknown';
 
-$status_class = [
-    'active' => 'status-active',
-    'inactive' => 'status-inactive',
-    'suspended' => 'status-suspended'
-];
+$status_class = ['active' => 'status-active', 'inactive' => 'status-inactive', 'suspended' => 'status-suspended'];
 $current_status_class = $status_class[$user['status'] ?? 'active'] ?? 'status-inactive';
 
 $company_name = 'JRN Business Solutions Co.';
@@ -77,13 +68,14 @@ $resourceLinks = [
     ['text' => 'Support', 'url' => '#'],
     ['text' => 'Contact Us', 'url' => '#']
 ];
+
 $socialLinks = [
-    ['name' => 'Facebook', 'icon' => 'facebook.svg', 'url' => '#'],
-    ['name' => 'Twitter', 'icon' => 'twitter.svg', 'url' => '#'],
+    ['name' => 'Facebook',  'icon' => 'facebook.svg',  'url' => '#'],
+    ['name' => 'Twitter',   'icon' => 'twitter.svg',   'url' => '#'],
     ['name' => 'Instagram', 'icon' => 'instagram.svg', 'url' => '#']
 ];
 
-// Fetch user availed services from inquiries
+// Fetch user availed services (single query with processing_type)
 $user_services = [];
 $stmt = $conn->prepare("
     SELECT i.id,
@@ -92,16 +84,16 @@ $stmt = $conn->prepare("
            i.additional_notes,
            i.status,
            i.created_at,
-           i.qr_code_path,              -- add this
+           i.qr_code_path,
+           i.processing_type,
            COUNT(d.id) AS document_count
     FROM inquiries i
     LEFT JOIN inquiry_documents d ON i.id = d.inquiry_id
     WHERE i.user_id = ?
-      AND i.status IN ('pending','in_review','completed')
+      AND i.status IN ('pending','in_review','completed','rejected')
     GROUP BY i.id
     ORDER BY i.created_at DESC
 ");
-
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -110,23 +102,30 @@ while ($row = $result->fetch_assoc()) {
 }
 $stmt->close();
 
+// Count by status for stats chips
+$status_counts = ['pending' => 0, 'in_review' => 0, 'completed' => 0];
+foreach ($user_services as $s) {
+    if (isset($status_counts[$s['status']])) $status_counts[$s['status']]++;
+}
 
 // Fetch user invoices
 $user_invoices = [];
-
-// Fallback: match by client_name = display_name
 $stmt = $conn->prepare("
     SELECT b.id,
            b.invoice_number,
            b.total_amount,
            b.status,
-           b.created_at
+           b.created_at,
+           b.service_name,
+           b.base_fee,
+           b.processing_fee,
+           b.other_fees,
+           b.discount
     FROM billings b
     WHERE b.client_name = ?
     ORDER BY b.created_at DESC
 ");
 $stmt->bind_param("s", $display_name);
-
 $stmt->execute();
 $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {
@@ -134,8 +133,14 @@ while ($row = $result->fetch_assoc()) {
 }
 $stmt->close();
 
-
-
+$unpaidCount = 0;
+$unpaidTotal = 0.0;
+foreach ($user_invoices as $inv) {
+    if (in_array($inv['status'], ['unpaid', 'pending'])) {
+        $unpaidCount++;
+        $unpaidTotal += (float)$inv['total_amount'];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -152,10 +157,12 @@ $stmt->close();
     <link rel="stylesheet" href="assets/css/discard-modal.css" />
     <link rel="stylesheet" href="assets/css/account-page.css" />
     <link rel="stylesheet" href="assets/css/password-change-modal.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 </head>
 
 <body>
-    <!-- Success/Error Messages -->
+
+    <!-- Alerts -->
     <?php if (isset($_SESSION['success'])): ?>
         <div class="alert alert-success" id="alertSuccess">
             <div class="alert-content">
@@ -163,9 +170,7 @@ $stmt->close();
                 <span><?php echo $_SESSION['success'];
                         unset($_SESSION['success']); ?></span>
             </div>
-            <button class="alert-close" onclick="closeAlert('alertSuccess')">
-                <i class="fas fa-times"></i>
-            </button>
+            <button class="alert-close" onclick="closeAlert('alertSuccess')"><i class="fas fa-times"></i></button>
         </div>
     <?php endif; ?>
     <?php if (isset($_SESSION['error'])): ?>
@@ -175,9 +180,7 @@ $stmt->close();
                 <span><?php echo $_SESSION['error'];
                         unset($_SESSION['error']); ?></span>
             </div>
-            <button class="alert-close" onclick="closeAlert('alertError')">
-                <i class="fas fa-times"></i>
-            </button>
+            <button class="alert-close" onclick="closeAlert('alertError')"><i class="fas fa-times"></i></button>
         </div>
     <?php endif; ?>
 
@@ -220,9 +223,14 @@ $stmt->close();
                     <span>Status</span>
                     <strong class="status-pill <?php echo $current_status_class; ?>"><?php echo $current_status; ?></strong>
                 </div>
+                <div class="meta-item">
+                    <span>Services</span>
+                    <strong><?php echo count($user_services); ?></strong>
+                </div>
             </div>
         </div>
     </section>
+
     <div class="account-container">
         <!-- Sidebar -->
         <aside class="account-sidebar">
@@ -232,27 +240,64 @@ $stmt->close();
                 <p class="sidebar-email"><?php echo htmlspecialchars($user['email'] ?? 'N/A'); ?></p>
             </div>
 
+            <p class="sidebar-nav-label">Navigation</p>
             <ul class="sidebar-menu">
-                <li><a class="active" href="#profile"><i class="fas fa-user-circle"></i> Profile Info</a></li>
-                <li><a href="#services"><i class="fas fa-briefcase"></i> My Services</a></li>
-                <li><a href="#billing"><i class="fas fa-file-invoice-dollar"></i> Billing</a></li>
-                <li><a href="#settings"><i class="fas fa-cog"></i> Settings</a></li>
+                <li>
+                    <a class="active" href="#profile" data-section="profile">
+                        <i class="fas fa-user-circle"></i>
+                        <span>Profile Info</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#services" data-section="services">
+                        <i class="fas fa-briefcase"></i>
+                        <span>My Services</span>
+                        <?php if (count($user_services) > 0): ?>
+                            <span class="sidebar-badge"><?php echo count($user_services); ?></span>
+                        <?php endif; ?>
+                    </a>
+                </li>
+                <li>
+                    <a href="#billing" data-section="billing">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <span>Billing</span>
+                        <?php if ($unpaidCount > 0): ?>
+                            <span class="sidebar-badge"><?php echo $unpaidCount; ?></span>
+                        <?php endif; ?>
+                    </a>
+                </li>
+                <li><a href="inquiry_tracker.php"><i class="fas fa-map-marker-alt"></i> <span>Inquiry Tracker</span></a></li>
+                <li>
+                    <a href="#settings" data-section="settings">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </li>
             </ul>
 
             <ul class="sidebar-menu sidebar-footer">
-                <li><a href="terms.php"><i class="fas fa-file-contract"></i> Terms of Service</a></li>
-                <li><a href="privacy.php"><i class="fas fa-shield-alt"></i> Privacy Policy</a></li>
-                <li><a href="#" class="report-link"><i class="fas fa-flag"></i> Report an Issue</a></li>
+                <li><a href="terms.php"><i class="fas fa-file-contract"></i> <span>Terms of Service</span></a></li>
+                <li><a href="privacy.php"><i class="fas fa-shield-alt"></i> <span>Privacy Policy</span></a></li>
+                <li><a href="#" class="report-link"><i class="fas fa-flag"></i> <span>Report an Issue</span></a></li>
             </ul>
         </aside>
 
         <main class="account-main">
-            <!-- Profile Info -->
+
+
+
+            <!-- ══ PROFILE ══ -->
             <section class="dashboard-card active" id="profile">
                 <div class="card-head">
-                    <h3><i class="fas fa-user"></i> Profile Information</h3>
+                    <div class="card-head-meta">
+                        <div class="card-head-icon"><i class="fas fa-user"></i></div>
+                        <div>
+                            <h3>Profile Information</h3>
+                            <p class="card-desc">Manage your personal details and contact info</p>
+                        </div>
+                    </div>
                     <button type="button" class="btn-light" id="editProfileBtn">
-                        <i class="fas fa-pen"></i> Edit
+                        <i class="fas fa-pen"></i> Edit Profile
                     </button>
                 </div>
 
@@ -260,14 +305,38 @@ $stmt->close();
                     <form id="profileForm" method="POST" action="update_profile.php">
                         <!-- Display Mode -->
                         <div id="profileDisplay" class="profile-grid">
-                            <div class="field"><span>Full Name</span><strong><?php echo htmlspecialchars($display_name); ?></strong></div>
-                            <div class="field"><span>Username</span><strong><?php echo isset($user['username']) && $user['username'] ? htmlspecialchars($user['username']) : 'N/A'; ?></strong></div>
-                            <div class="field"><span>Email</span><strong><?php echo isset($user['email']) && $user['email'] ? htmlspecialchars($user['email']) : 'N/A'; ?></strong></div>
-                            <div class="field"><span>Phone</span><strong><?php echo isset($user['phone']) && $user['phone'] ? htmlspecialchars($user['phone']) : 'N/A'; ?></strong></div>
-                            <div class="field full"><span>Address</span><strong><?php echo isset($user['address']) && $user['address'] ? htmlspecialchars($user['address']) : 'N/A'; ?></strong></div>
-                            <div class="field"><span>City</span><strong><?php echo isset($user['city']) && $user['city'] ? htmlspecialchars($user['city']) : 'N/A'; ?></strong></div>
-                            <div class="field"><span>State</span><strong><?php echo isset($user['state']) && $user['state'] ? htmlspecialchars($user['state']) : 'N/A'; ?></strong></div>
-                            <div class="field"><span>Postal Code</span><strong><?php echo isset($user['postal_code']) && $user['postal_code'] ? htmlspecialchars($user['postal_code']) : 'N/A'; ?></strong></div>
+                            <div class="field">
+                                <span>Full Name</span>
+                                <strong><?php echo htmlspecialchars($display_name); ?></strong>
+                            </div>
+                            <div class="field">
+                                <span>Username</span>
+                                <strong><?php echo isset($user['username']) ? htmlspecialchars($user['username']) : 'N/A'; ?></strong>
+                            </div>
+                            <div class="field">
+                                <span>Email Address</span>
+                                <strong><?php echo isset($user['email']) ? htmlspecialchars($user['email']) : 'N/A'; ?></strong>
+                            </div>
+                            <div class="field">
+                                <span>Phone Number</span>
+                                <strong><?php echo isset($user['phone']) ? htmlspecialchars($user['phone']) : 'N/A'; ?></strong>
+                            </div>
+                            <div class="field full">
+                                <span>Street Address</span>
+                                <strong><?php echo isset($user['address']) ? htmlspecialchars($user['address']) : 'N/A'; ?></strong>
+                            </div>
+                            <div class="field">
+                                <span>City</span>
+                                <strong><?php echo isset($user['city']) ? htmlspecialchars($user['city']) : 'N/A'; ?></strong>
+                            </div>
+                            <div class="field">
+                                <span>State / Province</span>
+                                <strong><?php echo isset($user['state']) ? htmlspecialchars($user['state']) : 'N/A'; ?></strong>
+                            </div>
+                            <div class="field">
+                                <span>Postal Code</span>
+                                <strong><?php echo isset($user['postal_code']) ? htmlspecialchars($user['postal_code']) : 'N/A'; ?></strong>
+                            </div>
                         </div>
 
                         <!-- Edit Mode -->
@@ -277,40 +346,34 @@ $stmt->close();
                                     <label for="first_name">First Name</label>
                                     <input type="text" id="first_name" name="first_name" value="<?php echo htmlspecialchars($user['first_name'] ?? ''); ?>" required />
                                 </div>
-
                                 <div class="input-row">
                                     <label for="last_name">Last Name</label>
                                     <input type="text" id="last_name" name="last_name" value="<?php echo htmlspecialchars($user['last_name'] ?? ''); ?>" required />
                                 </div>
                             </div>
-
                             <div class="input-row">
                                 <label for="username">Username</label>
                                 <input type="text" id="username" name="username" value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>" required />
                             </div>
-
                             <div class="input-row">
-                                <label for="email">Email</label>
+                                <label for="email">Email Address</label>
                                 <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" required />
                             </div>
-
                             <div class="input-row">
-                                <label for="phone">Phone</label>
+                                <label for="phone">Phone Number</label>
                                 <input type="text" id="phone" name="phone" value="<?php echo htmlspecialchars($user['phone'] ?? ''); ?>" />
                             </div>
-
                             <div class="input-row">
-                                <label for="address">Address</label>
+                                <label for="address">Street Address</label>
                                 <input type="text" id="address" name="address" value="<?php echo htmlspecialchars($user['address'] ?? ''); ?>" />
                             </div>
-
                             <div class="input-grid-3">
                                 <div class="input-row">
                                     <label for="city">City</label>
                                     <input type="text" id="city" name="city" value="<?php echo htmlspecialchars($user['city'] ?? ''); ?>" />
                                 </div>
                                 <div class="input-row">
-                                    <label for="state">State</label>
+                                    <label for="state">State / Province</label>
                                     <input type="text" id="state" name="state" value="<?php echo htmlspecialchars($user['state'] ?? ''); ?>" />
                                 </div>
                                 <div class="input-row">
@@ -318,93 +381,163 @@ $stmt->close();
                                     <input type="text" id="postal_code" name="postal_code" value="<?php echo htmlspecialchars($user['postal_code'] ?? ''); ?>" />
                                 </div>
                             </div>
-
                             <div class="form-actions">
-                                <button type="submit" class="btn-primary">Save Changes</button>
-                                <button type="button" class="btn-light" id="cancelEditBtn">Cancel</button>
+                                <button type="submit" class="btn-primary"><i class="fas fa-save"></i> Save Changes</button>
+                                <button type="button" class="btn-light" id="cancelEditBtn"><i class="fas fa-times"></i> Cancel</button>
                             </div>
                         </div>
                     </form>
                 </div>
             </section>
 
-            <!-- My Services -->
+            <!-- ══ SERVICES ══ -->
             <section class="dashboard-card" id="services">
                 <div class="card-head">
-                    <h3><i class="fas fa-handshake"></i> My Services</h3>
-                    <a href="services.php" class="btn-light"><i class="fas fa-plus"></i> Inquire Now!</a>
+                    <div class="card-head-meta">
+                        <div class="card-head-icon"><i class="fas fa-handshake"></i></div>
+                        <div>
+                            <h3>My Services</h3>
+                            <p class="card-desc">Track all your service inquiries and their current status</p>
+                        </div>
+                    </div>
+                    <a href="services.php" class="btn-light"><i class="fas fa-plus"></i> Inquire Now</a>
                 </div>
                 <div class="card-content">
+
+                    <!-- Stats row -->
+                    <?php if (count($user_services) > 0): ?>
+                        <div class="services-toolbar">
+                            <div class="services-stats">
+                                <?php if ($status_counts['pending'] > 0): ?>
+                                    <span class="stat-chip pending"><i class="fas fa-clock"></i> <?php echo $status_counts['pending']; ?> Pending</span>
+                                <?php endif; ?>
+                                <?php if ($status_counts['in_review'] > 0): ?>
+                                    <span class="stat-chip in_review"><i class="fas fa-search"></i> <?php echo $status_counts['in_review']; ?> In Review</span>
+                                <?php endif; ?>
+                                <?php if ($status_counts['completed'] > 0): ?>
+                                    <span class="stat-chip completed"><i class="fas fa-check-circle"></i> <?php echo $status_counts['completed']; ?> Completed</span>
+                                <?php endif; ?>
+                            </div>
+                            <a href="inquiry_tracker.php" class="btn-light btn-xs">
+                                <i class="fas fa-map-marker-alt"></i> Track an Inquiry
+                            </a>
+                        </div>
+                    <?php endif; ?>
+
                     <?php if (count($user_services) > 0): ?>
                         <div class="service-grid">
-                            <?php foreach ($user_services as $srv): ?>
-                                <div class="service-card"
-                                    data-inquiry-id="<?php echo (int)$srv['id']; ?>"
-                                    data-inquiry-number="<?php echo htmlspecialchars($srv['inquiry_number']); ?>"
-                                    data-service-name="<?php echo htmlspecialchars($srv['service_name']); ?>"
-                                    data-status="<?php echo htmlspecialchars($srv['status']); ?>"
-                                    data-created-at="<?php echo htmlspecialchars($srv['created_at']); ?>"
-                                    data-notes="<?php echo htmlspecialchars($srv['additional_notes'] ?? ''); ?>"
-                                    data-qr="<?php echo htmlspecialchars($srv['qr_code_path'] ?? ''); ?>">
-                                    <div class="service-icon"><i class="fas fa-clipboard-check"></i></div>
-                                    <div class="service-body">
-                                        <h4><?php echo htmlspecialchars($srv['service_name']); ?></h4>
-                                        <?php if (!empty($srv['additional_notes'])): ?>
-                                            <p><?php echo nl2br(htmlspecialchars($srv['additional_notes'])); ?></p>
-                                        <?php endif; ?>
-                                        <p class="service-detail"><strong>Status:</strong>
-                                            <?php
-                                            if ($srv['status'] === 'pending') echo 'Pending';
-                                            elseif ($srv['status'] === 'in_review') echo 'In Review';
-                                            elseif ($srv['status'] === 'completed') echo 'Completed';
-                                            elseif ($srv['status'] === 'rejected') echo 'Rejected';
-                                            else echo htmlspecialchars(ucfirst($srv['status']));
-                                            ?>
-                                        </p>
-                                        <p class="service-detail"><strong>Reference #:</strong> <?php echo htmlspecialchars($srv['inquiry_number']); ?></p>
-                                        <p class="service-detail"><strong>Requested:</strong> <?php echo date('F j, Y', strtotime($srv['created_at'])); ?></p>
-                                    </div>
-                                    <button type="button"
-                                        class="btn-light btn-xs view-inquiry-btn"
-                                        data-inquiry-id="<?php echo (int)$srv['id']; ?>">
-                                        View Details
-                                    </button>
+                            <?php foreach ($user_services as $srv):
+                                $proc_icons = [
+                                    'standard'  => 'fa-clock',
+                                    'priority'  => 'fa-bolt',
+                                    'express'   => 'fa-shipping-fast',
+                                    'rush'      => 'fa-fire',
+                                    'same_day'  => 'fa-exclamation-circle',
+                                ];
+                                $proc_key = strtolower($srv['processing_type'] ?? 'standard');
+                                $proc_icon = $proc_icons[$proc_key] ?? 'fa-clock';
+                                $proc_label_map = [
+                                    'standard'  => 'Standard',
+                                    'priority'  => 'Priority',
+                                    'express'   => 'Express',
+                                    'rush'      => 'Rush',
+                                    'same_day'  => 'Same-Day',
+                                ];
+                                $proc_display = $proc_label_map[$proc_key] ?? ucfirst($proc_key);
+                            ?>
+                                <div class="service-card">
+                                    <div class="service-card-bar <?php echo htmlspecialchars($srv['status']); ?>"></div>
+                                    <div class="service-card-inner">
+                                        <div class="service-card-top">
+                                            <div class="service-icon">
+                                                <i class="fas fa-clipboard-check"></i>
+                                            </div>
+                                            <div class="service-title-row service-body">
+                                                <h4><?php echo htmlspecialchars($srv['service_name']); ?></h4>
+                                                <span class="status-pill <?php echo htmlspecialchars($srv['status']); ?>">
+                                                    <?php
+                                                    $labels = ['pending' => 'Pending', 'in_review' => 'In Review', 'completed' => 'Completed', 'rejected' => 'Rejected'];
+                                                    echo $labels[$srv['status']] ?? ucfirst($srv['status']);
+                                                    ?>
+                                                </span>
+                                            </div>
+                                        </div>
 
+                                        <?php if (!empty($srv['additional_notes'])): ?>
+                                            <p class="service-notes"><?php echo nl2br(htmlspecialchars($srv['additional_notes'])); ?></p>
+                                        <?php endif; ?>
+
+                                        <div class="service-meta-grid">
+                                            <div class="service-meta-item">
+                                                <span>Reference #</span>
+                                                <strong style="font-family:'Courier New',monospace;font-size:0.78rem;"><?php echo htmlspecialchars($srv['inquiry_number']); ?></strong>
+                                            </div>
+                                            <div class="service-meta-item">
+                                                <span>Date Requested</span>
+                                                <strong><?php echo date('M j, Y', strtotime($srv['created_at'])); ?></strong>
+                                            </div>
+                                            <div class="service-meta-item">
+                                                <span>Processing</span>
+                                                <strong>
+                                                    <i class="fas <?php echo $proc_icon; ?>" style="font-size:0.72rem;margin-right:3px;"></i>
+                                                    <?php echo $proc_display; ?>
+                                                </strong>
+                                            </div>
+                                            <div class="service-meta-item">
+                                                <span>Documents</span>
+                                                <strong><?php echo (int)$srv['document_count']; ?> file(s)</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Tracker strip -->
+                                    <div class="tracker-strip">
+                                        <i class="fas fa-map-marker-alt"></i>
+                                        <span>Track status:</span>
+                                        <a href="inquiry_tracker.php?ref=<?php echo urlencode($srv['inquiry_number']); ?>">
+                                            Use reference #<?php echo htmlspecialchars($srv['inquiry_number']); ?>
+                                        </a>
+                                    </div>
+
+                                    <div class="service-card-actions">
+                                        <button type="button"
+                                            class="view-inquiry-btn"
+                                            data-inquiry-id="<?php echo (int)$srv['id']; ?>">
+                                            <i class="fas fa-eye"></i> View Details
+                                        </button>
+                                    </div>
                                 </div>
                             <?php endforeach; ?>
                         </div>
                     <?php else: ?>
                         <div class="empty-state">
-                            <i class="fas fa-file-invoice-dollar"></i>
-                            <p>No availed services yet</p>
-                            <span>Once you avail a service, it will appear here!</span>
+                            <div class="empty-state-icon"><i class="fas fa-briefcase"></i></div>
+                            <p>No services availed yet</p>
+                            <span>Once you submit an inquiry, your services will appear here.</span>
+                            <a href="services.php" class="btn-primary btn-xs"><i class="fas fa-plus"></i> Browse Services</a>
                         </div>
                     <?php endif; ?>
                 </div>
             </section>
 
-            <!-- Billing -->
+            <!-- ══ BILLING ══ -->
             <section class="dashboard-card" id="billing">
                 <div class="card-head">
-                    <h3><i class="fas fa-wallet"></i> Billing & Payments</h3>
-                    <?php if (count($user_invoices) > 0): ?>
+                    <div class="card-head-meta">
+                        <div class="card-head-icon"><i class="fas fa-wallet"></i></div>
+                        <div>
+                            <h3>Billing &amp; Payments</h3>
+                            <p class="card-desc">View and pay your invoices</p>
+                        </div>
+                    </div>
+                    <?php if ($unpaidCount > 0): ?>
                         <span class="billing-summary-pill">
-                            <?php
-                            $unpaidCount = 0;
-                            $unpaidTotal = 0.0;
-                            foreach ($user_invoices as $inv) {
-                                if (in_array($inv['status'], ['unpaid', 'pending'])) {
-                                    $unpaidCount++;
-                                    $unpaidTotal += (float)$inv['total_amount'];
-                                }
-                            }
-                            ?>
-                            <?php if ($unpaidCount > 0): ?>
-                                You have <strong><?php echo $unpaidCount; ?></strong> unpaid invoice(s)
-                                totalling <strong>₱<?php echo number_format($unpaidTotal, 2); ?></strong>.
-                            <?php else: ?>
-                                All invoices are settled. Thank you!
-                            <?php endif; ?>
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong><?php echo $unpaidCount; ?></strong> unpaid — <strong>₱<?php echo number_format($unpaidTotal, 2); ?></strong>
+                        </span>
+                    <?php elseif (count($user_invoices) > 0): ?>
+                        <span class="billing-summary-pill" style="background:#f0fdf4;color:#16a34a;border-color:rgba(22,163,74,0.2);">
+                            <i class="fas fa-check-circle"></i> All settled
                         </span>
                     <?php endif; ?>
                 </div>
@@ -415,6 +548,7 @@ $stmt->close();
                                 <thead>
                                     <tr>
                                         <th>Invoice #</th>
+                                        <th>Service</th>
                                         <th>Issued On</th>
                                         <th>Total (₱)</th>
                                         <th>Status</th>
@@ -424,24 +558,21 @@ $stmt->close();
                                 <tbody>
                                     <?php foreach ($user_invoices as $inv): ?>
                                         <tr>
-                                            <td><?php echo htmlspecialchars($inv['invoice_number']); ?></td>
-                                            <td><?php echo $inv['created_at'] ? date('M j, Y', strtotime($inv['created_at'])) : '—'; ?></td>
-                                            <td><?php echo number_format((float)$inv['total_amount'], 2); ?></td>
+                                            <td><span class="invoice-num"><?php echo htmlspecialchars($inv['invoice_number']); ?></span></td>
+                                            <td style="font-size:0.83rem;color:#4f5d62;"><?php echo htmlspecialchars($inv['service_name'] ?? '—'); ?></td>
+                                            <td style="font-size:0.85rem;"><?php echo $inv['created_at'] ? date('M j, Y', strtotime($inv['created_at'])) : '—'; ?></td>
+                                            <td><span class="invoice-amount">₱<?php echo number_format((float)$inv['total_amount'], 2); ?></span></td>
                                             <td>
                                                 <?php
-                                                $statusLabel = ucfirst($inv['status']);
-                                                $statusClass = 'status-pill ';
-                                                if ($inv['status'] === 'paid') {
-                                                    $statusClass .= 'status-paid';
-                                                } elseif (in_array($inv['status'], ['unpaid', 'pending'])) {
-                                                    $statusClass .= 'status-unpaid';
-                                                } elseif ($inv['status'] === 'cancelled') {
-                                                    $statusClass .= 'status-cancelled';
-                                                } else {
-                                                    $statusClass .= 'status-other';
-                                                }
+                                                $sClass = 'status-pill ';
+                                                $sClass .= match ($inv['status']) {
+                                                    'paid'       => 'status-paid',
+                                                    'unpaid', 'pending' => 'status-unpaid',
+                                                    'cancelled'  => 'status-cancelled',
+                                                    default      => 'status-other'
+                                                };
                                                 ?>
-                                                <span class="<?php echo $statusClass; ?>"><?php echo htmlspecialchars($statusLabel); ?></span>
+                                                <span class="<?php echo $sClass; ?>"><?php echo ucfirst($inv['status']); ?></span>
                                             </td>
                                             <td style="text-align:center;">
                                                 <?php if (in_array($inv['status'], ['unpaid', 'pending'])): ?>
@@ -450,8 +581,13 @@ $stmt->close();
                                                         data-invoice-id="<?php echo (int)$inv['id']; ?>"
                                                         data-invoice-number="<?php echo htmlspecialchars($inv['invoice_number']); ?>"
                                                         data-invoice-amount="<?php echo number_format((float)$inv['total_amount'], 2); ?>"
-                                                        data-invoice-status="<?php echo htmlspecialchars($inv['status']); ?>">
-                                                        Pay
+                                                        data-invoice-status="<?php echo htmlspecialchars($inv['status']); ?>"
+                                                        data-invoice-service="<?php echo htmlspecialchars($inv['service_name'] ?? ''); ?>"
+                                                        data-invoice-base="<?php echo number_format((float)($inv['base_fee'] ?? 0), 2); ?>"
+                                                        data-invoice-proc="<?php echo number_format((float)($inv['processing_fee'] ?? 0), 2); ?>"
+                                                        data-invoice-other="<?php echo number_format((float)($inv['other_fees'] ?? 0), 2); ?>"
+                                                        data-invoice-discount="<?php echo number_format((float)($inv['discount'] ?? 0), 2); ?>">
+                                                        <i class="fas fa-credit-card"></i> Pay
                                                     </button>
                                                 <?php else: ?>
                                                     <button type="button"
@@ -459,8 +595,13 @@ $stmt->close();
                                                         data-invoice-id="<?php echo (int)$inv['id']; ?>"
                                                         data-invoice-number="<?php echo htmlspecialchars($inv['invoice_number']); ?>"
                                                         data-invoice-amount="<?php echo number_format((float)$inv['total_amount'], 2); ?>"
-                                                        data-invoice-status="<?php echo htmlspecialchars($inv['status']); ?>">
-                                                        View
+                                                        data-invoice-status="<?php echo htmlspecialchars($inv['status']); ?>"
+                                                        data-invoice-service="<?php echo htmlspecialchars($inv['service_name'] ?? ''); ?>"
+                                                        data-invoice-base="<?php echo number_format((float)($inv['base_fee'] ?? 0), 2); ?>"
+                                                        data-invoice-proc="<?php echo number_format((float)($inv['processing_fee'] ?? 0), 2); ?>"
+                                                        data-invoice-other="<?php echo number_format((float)($inv['other_fees'] ?? 0), 2); ?>"
+                                                        data-invoice-discount="<?php echo number_format((float)($inv['discount'] ?? 0), 2); ?>">
+                                                        <i class="fas fa-eye"></i> View
                                                     </button>
                                                 <?php endif; ?>
                                             </td>
@@ -471,63 +612,182 @@ $stmt->close();
                         </div>
                     <?php else: ?>
                         <div class="empty-state">
-                            <i class="fas fa-file-invoice-dollar"></i>
+                            <div class="empty-state-icon"><i class="fas fa-file-invoice-dollar"></i></div>
                             <p>No invoices yet</p>
-                            <span>Once your inquiries are billed, invoices will appear here.</span>
+                            <span>Billing invoices will appear here once your inquiries are processed.</span>
                         </div>
                     <?php endif; ?>
                 </div>
             </section>
 
-            <div class="modal-overlay" id="inquiryModal" style="display:none;">
-                <div class="modal-content inquiry-modal">
-                    <span class="close-modal" id="closeInquiryModal">&times;</span>
-                    <h2><i class="fas fa-clipboard-list"></i> Inquiry Details</h2>
-                    <div id="inquiryModalBody"></div>
-                    <div class="inquiry-modal-actions">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Settings -->
+            <!-- ══ SETTINGS ══ -->
             <section class="dashboard-card" id="settings">
                 <div class="card-head">
-                    <h3><i class="fas fa-sliders-h"></i> Account Settings</h3>
+                    <div class="card-head-meta">
+                        <div class="card-head-icon"><i class="fas fa-sliders-h"></i></div>
+                        <div>
+                            <h3>Account Settings</h3>
+                            <p class="card-desc">Manage your security and preferences</p>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-content settings-list">
                     <div class="setting-row">
-                        <div>
-                            <h4><i class="fas fa-lock"></i> Change Password</h4>
-                            <p>Keep your account safe by updating your password regularly.</p>
+                        <div class="setting-row-left">
+                            <div class="setting-row-icon"><i class="fas fa-lock"></i></div>
+                            <div>
+                                <h4>Change Password</h4>
+                                <p>Keep your account safe by updating your password regularly. We recommend a strong, unique password.</p>
+                            </div>
                         </div>
-                        <button type="button" class="btn-primary" id="openPasswordModal" style="min-width:110px;"><i class="fas fa-key"></i> Change</button>
+                        <button type="button" class="btn-primary" id="openPasswordModal">
+                            <i class="fas fa-key"></i> Change
+                        </button>
                     </div>
                     <div class="settings-hint">
-                        <i class="fas fa-info-circle"></i> For further security assistance, please contact <a href="support.php">Support</a>.
+                        <i class="fas fa-info-circle"></i>
+                        For further security assistance, please contact <a href="support.php">our support team</a>.
                     </div>
                 </div>
             </section>
 
+            <!-- ══ INQUIRY DETAILS MODAL ══ -->
+            <div id="inquiryModal" style="display:none;">
+                <div class="inquiry-modal">
+                    <div class="inquiry-modal-header">
+                        <div class="inquiry-modal-header-icon"><i class="fas fa-clipboard-list"></i></div>
+                        <div style="flex:1;min-width:0;">
+                            <h2>Inquiry Details</h2>
+                            <div class="modal-ref" id="modal-ref-display"></div>
+                        </div>
+                    </div>
+                    <button class="close-modal" id="closeInquiryModal" title="Close">&times;</button>
 
-            <!-- Billing Modal -->
-            <div class="modal-overlay" id="billingModalOverlay" style="display:none;">
-                <div class="modal-content billing-modal">
-                    <span class="close-modal" id="closeBillingModal">&times;</span>
-                    <h2 id="billingModalTitle"><i class="fas fa-file-invoice-dollar"></i> Invoice</h2>
+                    <div id="inquiryModalBody">
+                        <!-- Service Info -->
+                        <div class="inquiry-detail-section">
+                            <div class="inquiry-detail-section-label">Service Information</div>
+                            <div class="inquiry-detail-grid">
+                                <div class="inquiry-detail-item full">
+                                    <div class="d-label">Service Requested</div>
+                                    <div class="d-value" id="modal-service-name">—</div>
+                                </div>
+                                <div class="inquiry-detail-item">
+                                    <div class="d-label">Reference Number</div>
+                                    <div class="d-value mono" id="modal-inquiry-number">—</div>
+                                </div>
+                                <div class="inquiry-detail-item">
+                                    <div class="d-label">Date Requested</div>
+                                    <div class="d-value" id="modal-requested-date">—</div>
+                                </div>
+                                <div class="inquiry-detail-item">
+                                    <div class="d-label">Status</div>
+                                    <div class="d-value" id="modal-status">—</div>
+                                </div>
+                                <div class="inquiry-detail-item">
+                                    <div class="d-label">Processing Type</div>
+                                    <div class="d-value" id="modal-processing-type">—</div>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div class="billing-modal-body">
-                        <p><strong>Invoice #:</strong> <span id="bmInvoiceNumber"></span></p>
-                        <p><strong>Status:</strong> <span id="bmInvoiceStatus"></span></p>
-                        <p><strong>Total Amount:</strong> ₱<span id="bmInvoiceAmount"></span></p>
+                        <!-- Notes -->
+                        <div class="inquiry-detail-section" id="modal-notes-section">
+                            <div class="inquiry-detail-section-label">Additional Notes</div>
+                            <div class="inquiry-notes" id="modal-additional-notes"></div>
+                        </div>
+
+                        <!-- QR Code -->
+                        <div class="inquiry-detail-section" id="modal-qr-section" style="display:none;">
+                            <div class="inquiry-detail-section-label">Inquiry QR Code</div>
+                            <div class="inquiry-qr-block">
+                                <img id="modal-qr-img" src="" alt="QR Code" />
+                                <a id="modal-qr-download" href="" download="" class="btn-light btn-xs">
+                                    <i class="fas fa-download"></i> Download QR
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Documents -->
+                        <div class="inquiry-detail-section" id="modal-docs-section" style="display:none;">
+                            <div class="inquiry-docs-title" id="modal-docs-title">Attached Documents</div>
+                            <div id="modal-attached-docs"></div>
+                        </div>
+
+                        <!-- Track link -->
+                        <div id="modal-track-strip" style="display:none;margin-top:4px;padding:10px 12px;background:#f0f9ff;border:1px solid rgba(37,99,235,0.15);border-radius:10px;font-size:0.82rem;color:#1e40af;">
+                            <i class="fas fa-map-marker-alt" style="margin-right:6px;"></i>
+                            Track this inquiry anytime at
+                            <a id="modal-track-link" href="#" style="color:#1d4ed8;font-weight:700;" target="_blank">inquiry_tracker.php</a>
+                        </div>
                     </div>
 
-                    <div class="billing-modal-actions" id="billingModalActions">
+                    <div class="inquiry-modal-actions">
+                        <a id="modal-track-btn" href="#" class="btn-light" target="_blank">
+                            <i class="fas fa-search"></i> Track Inquiry
+                        </a>
+                        <button class="btn-primary" id="closeInquiryModalBtn">
+                            <i class="fas fa-times"></i> Close
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Password Change Modal -->
-            <div class="modal-overlay" id="passwordModalOverlay" style="display: none;">
+            <!-- ══ BILLING MODAL ══ -->
+            <div class="modal-overlay" id="billingModalOverlay" style="display:none;">
+                <div class="billing-modal">
+                    <div class="billing-modal-top">
+                        <h2 id="billingModalTitle"><i class="fas fa-file-invoice-dollar"></i> Invoice</h2>
+                        <div class="billing-modal-invoice-ref" id="bmInvoiceRef"></div>
+                    </div>
+                    <button class="close-modal" id="closeBillingModal">&times;</button>
+
+                    <div class="billing-modal-body">
+                        <p style="font-size:0.78rem;color:#9ca3af;margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;">
+                            Service
+                        </p>
+                        <p style="font-weight:600;color:#111827;margin-bottom:16px;font-size:0.95rem;" id="bmServiceName">—</p>
+
+                        <p style="font-size:0.78rem;color:#9ca3af;margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;">
+                            Fee Breakdown
+                        </p>
+                        <table class="fee-breakdown" id="bmFeeBreakdown">
+                            <tbody>
+                                <tr>
+                                    <td class="fee-row-label">Base Service Fee</td>
+                                    <td class="fee-row-amount" id="bmBaseFee">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="fee-row-label">Processing Fee</td>
+                                    <td class="fee-row-amount" id="bmProcFee">—</td>
+                                </tr>
+                                <tr id="bmOtherRow">
+                                    <td class="fee-row-label">Other Fees</td>
+                                    <td class="fee-row-amount" id="bmOtherFee">—</td>
+                                </tr>
+                                <tr id="bmDiscountRow">
+                                    <td class="fee-row-label" style="color:#16a34a;">Discount</td>
+                                    <td class="fee-row-amount" style="color:#16a34a;" id="bmDiscount">—</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="fee-total-row">
+                            <span class="fee-total-label">Total Amount</span>
+                            <span class="fee-total-amount">₱<span id="bmInvoiceAmount">0.00</span></span>
+                        </div>
+
+                        <p style="margin-top:10px;font-size:0.72rem;color:#9ca3af;">
+                            Status: <span id="bmInvoiceStatus" style="font-weight:700;"></span>
+                        </p>
+                    </div>
+
+                    <div class="billing-modal-actions" id="billingModalActions"></div>
+                </div>
+            </div>
+
+            <!-- ══ PASSWORD MODAL ══ -->
+            <div class="modal-overlay" id="passwordModalOverlay" style="display:none;">
                 <div class="modal-content">
                     <span class="close-modal" id="closePasswordModal">&times;</span>
                     <h2><i class="fas fa-key"></i> Change Password</h2>
@@ -545,17 +805,18 @@ $stmt->close();
                             <input type="password" id="confirm_password" name="confirm_password" required autocomplete="new-password" />
                         </div>
                         <div class="form-actions">
-                            <button type="submit" class="btn-primary">Update Password</button>
+                            <button type="submit" class="btn-primary"><i class="fas fa-save"></i> Update Password</button>
                             <button type="button" class="btn-light" id="cancelPasswordModal">Cancel</button>
                         </div>
                     </form>
-                    <div id="passwordModalMsg" style="margin-top:10px;"></div>
+                    <div id="passwordModalMsg" style="margin-top:10px;font-size:0.85rem;color:#dc2626;"></div>
                 </div>
             </div>
+
         </main>
     </div>
 
-
+    <!-- Footer -->
     <footer class="footer">
         <div class="footer-top">
             <div class="footer-logo-desc">
@@ -566,13 +827,8 @@ $stmt->close();
                 <p>Providing end-to-end business solutions including legal documents processing, tax compliance, payroll, and accounting services to help your business grow.</p>
                 <div class="footer-socials">
                     <?php foreach ($socialLinks as $social): ?>
-                        <a href="<?php echo htmlspecialchars($social['url']); ?>"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label="<?php echo htmlspecialchars($social['name']); ?>">
-                            <img src="assets/img/icons/<?php echo htmlspecialchars($social['icon']); ?>"
-                                alt="<?php echo htmlspecialchars($social['name']); ?>"
-                                height="24">
+                        <a href="<?php echo htmlspecialchars($social['url']); ?>" target="_blank" rel="noopener noreferrer" aria-label="<?php echo htmlspecialchars($social['name']); ?>">
+                            <img src="assets/img/icons/<?php echo htmlspecialchars($social['icon']); ?>" alt="<?php echo htmlspecialchars($social['name']); ?>" height="24">
                         </a>
                     <?php endforeach; ?>
                 </div>
@@ -582,11 +838,7 @@ $stmt->close();
                     <h4>Quick Access</h4>
                     <ul>
                         <?php foreach ($quickLinks as $link): ?>
-                            <li>
-                                <a href="<?php echo htmlspecialchars($link['url']); ?>">
-                                    <?php echo htmlspecialchars($link['text']); ?>
-                                </a>
-                            </li>
+                            <li><a href="<?php echo htmlspecialchars($link['url']); ?>"><?php echo htmlspecialchars($link['text']); ?></a></li>
                         <?php endforeach; ?>
                     </ul>
                 </div>
@@ -594,25 +846,21 @@ $stmt->close();
                     <h4>Resources</h4>
                     <ul>
                         <?php foreach ($resourceLinks as $link): ?>
-                            <li>
-                                <a href="<?php echo htmlspecialchars($link['url']); ?>">
-                                    <?php echo htmlspecialchars($link['text']); ?>
-                                </a>
-                            </li>
+                            <li><a href="<?php echo htmlspecialchars($link['url']); ?>"><?php echo htmlspecialchars($link['text']); ?></a></li>
                         <?php endforeach; ?>
                     </ul>
                 </div>
             </div>
         </div>
         <div class="footer-bottom">
-            <p>
-                &copy; <?php echo date("Y"); ?> <?php echo htmlspecialchars($company_name); ?>. All Rights Reserved. |
+            <p>&copy; <?php echo date("Y"); ?> <?php echo htmlspecialchars($company_name); ?>. All Rights Reserved. |
                 <a href="privacy.php">Privacy Policy</a> |
                 <a href="terms.php">Terms of Service</a>
             </p>
         </div>
     </footer>
 
+    <!-- Logout Modal -->
     <div class="logout-modal-overlay" id="logout-modal-overlay">
         <div class="logout-modal">
             <h2>Confirm Logout</h2>
@@ -624,292 +872,89 @@ $stmt->close();
         </div>
     </div>
 
-    <script src="https://kit.fontawesome.com/a2e0e6d6f3.js" crossorigin="anonymous"></script>
     <script src="assets/js/logout-modal.js"></script>
     <script src="assets/js/discard-modal.js"></script>
 
-    <!-- Inquiry Details + QR modal -->
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const services = <?php echo json_encode($user_services); ?>;
+        // ── Services data from PHP ──
+        const services = <?php echo json_encode($user_services); ?>;
 
-            const inquiryModal = document.getElementById('inquiryModal');
-            const inquiryModalBody = document.getElementById('inquiryModalBody');
-            const closeInquiryModal = document.getElementById('closeInquiryModal');
+        // ══════════════════════════════════════════════
+        //  TAB + SIDEBAR NAVIGATION
+        // ══════════════════════════════════════════════
+        function showSection(sectionId) {
+            document.querySelectorAll('.dashboard-card').forEach(c => c.classList.remove('active'));
+            const target = document.getElementById(sectionId);
+            if (target) {
+                target.classList.add('active');
+            }
 
-            document.querySelectorAll('.view-inquiry-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const id = btn.dataset.inquiryId;
-                    const srv = services.find(s => s.id == id);
-                    if (!srv) return;
-
-                    fetch(`get_my_inquiry_documents.php?inquiry_id=${id}`)
-                        .then(r => r.json())
-                        .then(docs => {
-                            let docsHtml = 'No attached documents.';
-                            if (docs.length) {
-                                docsHtml = docs.map(doc => `
-                            <div class="doc-row">
-                              <div>
-                                <strong>${doc.file_name}</strong>
-                                <small>${(doc.file_size / 1024).toFixed(2)} KB</small>
-                              </div>
-                              <a href="download_document.php?id=${doc.id}"
-                                 class="btn-light btn-xs" target="_blank">
-                                 Download
-                              </a>
-                            </div>
-                        `).join('');
-                            }
-                            let qrHtml = '';
-                            if (srv.qr_code_path) {
-                                qrHtml = `
-        <div class="inquiry-detail-row" style="margin-top:10px;">
-            <span>
-            <strong>Inquiry QR Code:</strong>
-                   <div class="inquiry-qr-block" style="text-align:center;">
-    <img src="${srv.qr_code_path}"
-         alt="Inquiry QR Code"
-         style="max-width:140px;height:auto;border-radius:10px;
-                border:1px solid rgba(15,58,64,0.12);
-                padding:6px;background:#f8fbfb;
-                display:block;margin:0 auto 6px;">
-
-    <a href="${srv.qr_code_path}"
-       download="inquiry-${srv.inquiry_number}-qr.png"
-       class="btn-light btn-xs"
-       style="display:inline-block;margin:0 auto;">
-        Download QR Code
-    </a>
-</div>
-            </span>
-        </div>
-    `;
-                            }
-
-
-                            inquiryModalBody.innerHTML = `
-                        <div class="inquiry-detail-row">
-                          <strong>Service:</strong>
-                          <span>${srv.service_name}</span>
-                        </div>
-                        <div class="inquiry-detail-row">
-                          <strong>Reference #:</strong>
-                          <span>${srv.inquiry_number}</span>
-                        </div>
-                        <div class="inquiry-detail-row">
-                          <strong>Status:</strong>
-                          <span>${
-                              srv.status
-                                .replace('_', ' ')
-                                .replace(/\\b\\w/g, c => c.toUpperCase())
-                          }</span>
-                        </div>
-                        <div class="inquiry-detail-row">
-                          <strong>Requested:</strong>
-                          <span>${new Date(srv.created_at).toLocaleString()}</span>
-                        </div>
-                        <div class="inquiry-detail-row">
-                          <span>
-                            <strong>Additional Notes:</strong>
-                            <div class="inquiry-notes">
-                              ${srv.additional_notes || '—'}
-                            </div>
-                          </span>
-                        </div>
-                        ${qrHtml}
-                        <div>
-                          <div class="inquiry-docs-title">Attached Documents</div>
-                          ${docsHtml}
-                        </div>
-                    `;
-
-                            inquiryModal.style.display = 'flex';
-                        })
-                        .catch(err => console.error('Error loading docs:', err));
-                });
+            // Update tab bar
+            document.querySelectorAll('.account-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.target === sectionId);
             });
 
-            if (closeInquiryModal) {
-                closeInquiryModal.onclick = () => {
-                    inquiryModal.style.display = 'none';
-                };
-            }
+            // Update sidebar
+            document.querySelectorAll('.sidebar-menu a[data-section]').forEach(l => {
+                l.classList.toggle('active', l.dataset.section === sectionId);
+            });
+
+            if (sectionId !== 'profile') enterDisplayMode();
+        }
+
+        document.querySelectorAll('.account-tab').forEach(tab => {
+            tab.addEventListener('click', () => showSection(tab.dataset.target));
         });
-    </script>
 
-    <!-- Billing modal -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const overlay = document.getElementById('billingModalOverlay');
-            const closeBtn = document.getElementById('closeBillingModal');
-            const titleEl = document.getElementById('billingModalTitle');
-            const numEl = document.getElementById('bmInvoiceNumber');
-            const statusEl = document.getElementById('bmInvoiceStatus');
-            const amountEl = document.getElementById('bmInvoiceAmount');
-            const actionsEl = document.getElementById('billingModalActions');
-
-            function openBillingModal(type, data) {
-                numEl.textContent = data.number;
-                amountEl.textContent = data.amount;
-                statusEl.textContent = data.statusLabel;
-
-                actionsEl.innerHTML = '';
-
-                if (type === 'pay') {
-                    titleEl.innerHTML = '<i class="fas fa-wallet"></i> Pay Invoice';
-
-                    const payBtn = document.createElement('button');
-                    payBtn.className = 'btn-primary';
-                    payBtn.textContent = 'Pay Now';
-                    payBtn.onclick = function() {
-                        window.location.href = 'invoice_view.php?id=' + data.id + '&mode=pay';
-                    };
-
-                    const cancelBtn = document.createElement('button');
-                    cancelBtn.className = 'btn-light';
-                    cancelBtn.textContent = 'Cancel';
-                    cancelBtn.onclick = closeBillingModal;
-
-                    actionsEl.appendChild(payBtn);
-                    actionsEl.appendChild(cancelBtn);
-                } else {
-                    titleEl.innerHTML = '<i class="fas fa-file-invoice"></i> View Invoice';
-
-                    const viewBtn = document.createElement('button');
-                    viewBtn.className = 'btn-primary';
-                    viewBtn.textContent = 'Open Invoice';
-                    viewBtn.onclick = function() {
-                        window.location.href = 'invoice_view.php?id=' + data.id;
-                    };
-
-                    const closeBtn2 = document.createElement('button');
-                    closeBtn2.className = 'btn-light';
-                    closeBtn2.textContent = 'Close';
-                    closeBtn2.onclick = closeBillingModal;
-
-                    actionsEl.appendChild(viewBtn);
-                    actionsEl.appendChild(closeBtn2);
-                }
-
-                overlay.style.display = 'flex';
-            }
-
-            function closeBillingModal() {
-                overlay.style.display = 'none';
-            }
-
-            closeBtn.addEventListener('click', closeBillingModal);
-            overlay.addEventListener('click', function(e) {
-                if (e.target === overlay) closeBillingModal();
-            });
-
-            document.querySelectorAll('.billing-pay-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    openBillingModal('pay', {
-                        id: this.dataset.invoiceId,
-                        number: this.dataset.invoiceNumber,
-                        amount: this.dataset.invoiceAmount,
-                        statusLabel: 'Unpaid'
-                    });
-                });
-            });
-
-            document.querySelectorAll('.billing-view-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    openBillingModal('view', {
-                        id: this.dataset.invoiceId,
-                        number: this.dataset.invoiceNumber,
-                        amount: this.dataset.invoiceAmount,
-                        statusLabel: 'Paid'
-                    });
-                });
-            });
-        });
-    </script>
-
-    <!-- Password modal -->
-    <script>
-        document.getElementById('openPasswordModal').onclick = function() {
-            document.getElementById('passwordModalOverlay').style.display = 'flex';
-        };
-        document.getElementById('closePasswordModal').onclick = function() {
-            document.getElementById('passwordModalOverlay').style.display = 'none';
-            document.getElementById('changePasswordForm').reset();
-            document.getElementById('passwordModalMsg').textContent = '';
-        };
-        document.getElementById('cancelPasswordModal').onclick = function() {
-            document.getElementById('closePasswordModal').click();
-        };
-        document.getElementById('changePasswordForm').onsubmit = function(e) {
-            var np = document.getElementById('new_password').value;
-            var cp = document.getElementById('confirm_password').value;
-            if (np !== cp) {
-                document.getElementById('passwordModalMsg').textContent = 'New passwords do not match.';
+        document.querySelectorAll('.sidebar-menu a[data-section]').forEach(link => {
+            link.addEventListener('click', function(e) {
                 e.preventDefault();
-                return false;
-            }
-        };
-    </script>
+                const id = this.dataset.section;
 
-    <!-- Alerts auto-dismiss -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const alertSuccess = document.getElementById('alertSuccess');
-            const alertError = document.getElementById('alertError');
+                const editDiv = document.getElementById('profileEdit');
+                const inEditMode = editDiv && editDiv.style.display === 'block';
+                const hasChanges = (() => {
+                    const form = document.getElementById('profileForm');
+                    if (!form) return false;
+                    for (let inp of form.querySelectorAll('input')) {
+                        if (inp.value !== inp.defaultValue) return true;
+                    }
+                    return false;
+                })();
 
-            if (alertSuccess) {
-                setTimeout(function() {
-                    closeAlert('alertSuccess');
-                }, 5000);
-            }
-
-            if (alertError) {
-                setTimeout(function() {
-                    closeAlert('alertError');
-                }, 5000);
-            }
+                if (inEditMode && hasChanges && typeof openDiscardModal === 'function') {
+                    openDiscardModal(() => {
+                        document.getElementById('profileForm')?.reset();
+                        enterDisplayMode();
+                        showSection(id);
+                    });
+                } else {
+                    showSection(id);
+                }
+            });
         });
 
-        function closeAlert(alertId) {
-            const alert = document.getElementById(alertId);
-            if (alert) {
-                alert.classList.add('hide');
-                setTimeout(function() {
-                    alert.remove();
-                }, 400);
-            }
-        }
-    </script>
+        // Handle URL hash on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const hash = window.location.hash.replace('#', '');
+            const validSections = ['profile', 'services', 'billing', 'settings'];
+            showSection(validSections.includes(hash) ? hash : 'profile');
+            initializeProfileState();
+        });
 
-    <!-- Navigation, profile, sidebar logic -->
-    <script>
-        function toggleMenu() {
-            const navLinks = document.querySelector('.nav-links');
-            const hamburger = document.querySelector('.hamburger');
-            if (navLinks) navLinks.classList.toggle('active');
-            if (hamburger) hamburger.classList.toggle('active');
-        }
-
-        const editBtn = document.getElementById('editProfileBtn');
+        // ══════════════════════════════════════════════
+        //  PROFILE EDIT
+        // ══════════════════════════════════════════════
+        const profileForm = document.getElementById('profileForm');
         const displayDiv = document.getElementById('profileDisplay');
         const editDiv = document.getElementById('profileEdit');
+        const editBtn = document.getElementById('editProfileBtn');
         const cancelBtn = document.getElementById('cancelEditBtn');
-        const profileForm = document.getElementById('profileForm');
 
         function initializeProfileState() {
-            if (displayDiv) {
-                displayDiv.style.display = 'grid';
-                if (!displayDiv.classList.contains('profile-grid')) {
-                    displayDiv.classList.add('profile-grid');
-                }
-            }
-            if (editDiv) {
-                editDiv.style.display = 'none';
-            }
-            if (editBtn) {
-                editBtn.style.display = 'inline-flex';
-            }
+            if (displayDiv) displayDiv.style.display = 'grid';
+            if (editDiv) editDiv.style.display = 'none';
+            if (editBtn) editBtn.style.display = 'inline-flex';
         }
 
         function enterEditMode() {
@@ -921,130 +966,308 @@ $stmt->close();
         function enterDisplayMode() {
             if (displayDiv) {
                 displayDiv.style.display = 'grid';
-                displayDiv.classList.remove("profile-edit");
-                if (!displayDiv.classList.contains('profile-grid')) {
-                    displayDiv.className = 'profile-grid';
-                }
+                displayDiv.className = 'profile-grid';
             }
-            if (editDiv) {
-                editDiv.style.display = 'none';
-            }
-            if (editBtn) {
-                editBtn.style.display = 'inline-flex';
-            }
-
-            if (editDiv) {
-                const inputs = editDiv.querySelectorAll('input');
-                inputs.forEach(input => {
-                    input.classList.remove('error');
-                    input.blur();
-                });
-            }
+            if (editDiv) editDiv.style.display = 'none';
+            if (editBtn) editBtn.style.display = 'inline-flex';
         }
 
-        function updateProfileDisplayFromForm() {
-            if (!profileForm || !displayDiv) return;
-            displayDiv.innerHTML = `
-        <div class="field"><span>Full Name</span><strong>${profileForm.first_name.value} ${profileForm.last_name.value}</strong></div>
-        <div class="field"><span>Username</span><strong>${profileForm.username.value}</strong></div>
-        <div class="field"><span>Email</span><strong>${profileForm.email.value}</strong></div>
-        <div class="field"><span>Phone</span><strong>${profileForm.phone.value || 'N/A'}</strong></div>
-        <div class="field full"><span>Address</span><strong>${profileForm.address.value || 'N/A'}</strong></div>
-        <div class="field"><span>City</span><strong>${profileForm.city.value || 'N/A'}</strong></div>
-        <div class="field"><span>State</span><strong>${profileForm.state.value || 'N/A'}</strong></div>
-        <div class="field"><span>Postal Code</span><strong>${profileForm.postal_code.value || 'N/A'}</strong></div>
-    `;
-            displayDiv.className = 'profile-grid';
-        }
+        editBtn?.addEventListener('click', enterEditMode);
+        cancelBtn?.addEventListener('click', () => {
+            profileForm?.reset();
+            enterDisplayMode();
+        });
 
-        if (editBtn) {
-            editBtn.addEventListener('click', function() {
-                enterEditMode();
+        // ══════════════════════════════════════════════
+        //  INQUIRY DETAILS MODAL
+        // ══════════════════════════════════════════════
+        const inquiryModal = document.getElementById('inquiryModal');
+
+        function openInquiryModal(id) {
+            const srv = services.find(s => s.id == id);
+            if (!srv) return;
+
+            // Header ref
+            document.getElementById('modal-ref-display').textContent = '#' + srv.inquiry_number;
+            document.getElementById('modal-service-name').textContent = srv.service_name;
+            document.getElementById('modal-inquiry-number').textContent = srv.inquiry_number;
+            document.getElementById('modal-requested-date').textContent = new Date(srv.created_at).toLocaleDateString('en-PH', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
             });
-        }
 
-        if (cancelBtn) {
-            cancelBtn.addEventListener('click', function() {
-                if (profileForm) profileForm.reset();
-                enterDisplayMode();
-            });
-        }
+            // Status pill
+            const statusLabels = {
+                pending: 'Pending',
+                in_review: 'In Review',
+                completed: 'Completed',
+                rejected: 'Rejected'
+            };
+            const statusColors = {
+                pending: '#c26400',
+                in_review: '#1d4ed8',
+                completed: '#16a34a',
+                rejected: '#dc2626'
+            };
+            const statusBg = {
+                pending: '#fff7e6',
+                in_review: '#eff6ff',
+                completed: '#f0fdf4',
+                rejected: '#fef2f2'
+            };
+            const st = srv.status;
+            document.getElementById('modal-status').innerHTML =
+                `<span class="status-pill ${st}" style="background:${statusBg[st]||'#f1f5f9'};color:${statusColors[st]||'#374151'};border-color:transparent;">
+                ${statusLabels[st] || st}
+            </span>`;
 
-        /* Sidebar navigation */
-        const sidebarLinks = document.querySelectorAll('.sidebar-menu a');
-        const cards = document.querySelectorAll('.dashboard-card');
+            // Processing type
+            const procMap = {
+                standard: 'Standard',
+                priority: 'Priority',
+                express: 'Express',
+                rush: 'Rush',
+                same_day: 'Same-Day'
+            };
+            const procIcons = {
+                standard: 'fa-clock',
+                priority: 'fa-bolt',
+                express: 'fa-shipping-fast',
+                rush: 'fa-fire',
+                same_day: 'fa-exclamation-circle'
+            };
+            const procClass = {
+                standard: 'standard',
+                priority: 'priority',
+                express: 'express',
+                rush: 'rush',
+                same_day: 'same_day'
+            };
+            const pk = srv.processing_type || 'standard';
+            const plabel = procMap[pk] || pk;
+            const picon = procIcons[pk] || 'fa-clock';
+            const pcls = procClass[pk] || 'standard';
+            document.getElementById('modal-processing-type').innerHTML =
+                `<span class="processing-type ${pcls}"><i class="fas ${picon}"></i> ${plabel}</span>`;
 
-        function showSection(sectionId) {
-            cards.forEach(card => card.classList.remove('active'));
-            const targetCard = document.getElementById(sectionId);
-            if (targetCard) targetCard.classList.add('active');
+            // Notes
+            const notesEl = document.getElementById('modal-additional-notes');
+            notesEl.textContent = srv.additional_notes || 'No additional notes provided.';
 
-            if (sectionId !== 'profile') {
-                enterDisplayMode();
-            }
-        }
-
-        function setActiveSidebarLink(activeLink) {
-            sidebarLinks.forEach(link => link.classList.remove('active'));
-            if (activeLink) activeLink.classList.add('active');
-        }
-
-        function hasUnsavedChanges() {
-            if (!profileForm) return false;
-            const inputs = profileForm.querySelectorAll('input[type="text"], input[type="email"]');
-            for (let input of inputs) {
-                if (input.value !== input.defaultValue) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        function handleSidebarClick(link, targetId) {
-            const inEditMode = editDiv && editDiv.style.display === 'block';
-
-            if (inEditMode && hasUnsavedChanges()) {
-                if (typeof openDiscardModal === 'function') {
-                    openDiscardModal(function() {
-                        if (profileForm) profileForm.reset();
-                        enterDisplayMode();
-                        setActiveSidebarLink(link);
-                        showSection(targetId);
-                    });
-                } else {
-                    if (confirm('You have unsaved changes. Discard them?')) {
-                        if (profileForm) profileForm.reset();
-                        enterDisplayMode();
-                        setActiveSidebarLink(link);
-                        showSection(targetId);
-                    }
-                }
+            // QR
+            if (srv.qr_code_path) {
+                document.getElementById('modal-qr-img').src = srv.qr_code_path;
+                document.getElementById('modal-qr-download').href = srv.qr_code_path;
+                document.getElementById('modal-qr-download').download = 'JRN-' + srv.inquiry_number + '-QR.png';
+                document.getElementById('modal-qr-section').style.display = 'block';
             } else {
-                setActiveSidebarLink(link);
-                showSection(targetId);
+                document.getElementById('modal-qr-section').style.display = 'none';
             }
+
+            // Track links
+            const trackUrl = 'inquiry_tracker.php?ref=' + encodeURIComponent(srv.inquiry_number);
+            document.getElementById('modal-track-link').href = trackUrl;
+            document.getElementById('modal-track-strip').style.display = 'block';
+            document.getElementById('modal-track-btn').href = trackUrl;
+
+            // Docs — async fetch
+            const docsSection = document.getElementById('modal-docs-section');
+            const docsContainer = document.getElementById('modal-attached-docs');
+            const docsTitle = document.getElementById('modal-docs-title');
+            docsSection.style.display = 'none';
+            docsContainer.innerHTML = '<p style="font-size:0.82rem;color:#9ca3af;">Loading documents…</p>';
+
+            fetch(`get_my_inquiry_documents.php?inquiry_id=${id}`)
+                .then(r => r.json())
+                .then(docs => {
+                    if (!docs.length) {
+                        docsContainer.innerHTML = '<p style="font-size:0.82rem;color:#9ca3af;padding:8px 0;">No documents attached.</p>';
+                    } else {
+                        docsTitle.textContent = `Attached Documents (${docs.length})`;
+                        docsContainer.innerHTML = docs.map(doc => {
+                            const ext = (doc.file_name || '').split('.').pop().toLowerCase();
+                            const iconClass = ext === 'pdf' ? 'fa-file-pdf' : (['jpg', 'jpeg', 'png', 'gif'].includes(ext) ? 'fa-file-image' : 'fa-file');
+                            const sizeKb = (doc.file_size / 1024).toFixed(1);
+                            return `<div class="doc-row">
+                            <div style="flex:1;min-width:0;">
+                                <strong><i class="fas ${iconClass}" style="margin-right:6px;color:#6b7280;font-size:0.8rem;"></i>${doc.file_label || doc.file_name}</strong>
+                                <small>${sizeKb} KB · ${ext.toUpperCase()}</small>
+                            </div>
+                            <a href="download_document.php?id=${doc.id}" class="btn-light btn-xs" target="_blank">
+                                <i class="fas fa-download"></i> Download
+                            </a>
+                        </div>`;
+                        }).join('');
+                    }
+                    docsSection.style.display = 'block';
+                })
+                .catch(() => {
+                    docsContainer.innerHTML = '<p style="font-size:0.82rem;color:#dc2626;">Could not load documents.</p>';
+                    docsSection.style.display = 'block';
+                });
+
+            // Show modal
+            inquiryModal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
         }
 
-        sidebarLinks.forEach(link => {
-            link.addEventListener('click', function(e) {
-                const href = link.getAttribute('href') || '';
-                if (!href.startsWith('#')) return;
+        function closeInquiryModal() {
+            inquiryModal.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+
+        document.querySelectorAll('.view-inquiry-btn').forEach(btn => {
+            btn.addEventListener('click', () => openInquiryModal(btn.dataset.inquiryId));
+        });
+
+        document.getElementById('closeInquiryModal')?.addEventListener('click', closeInquiryModal);
+        document.getElementById('closeInquiryModalBtn')?.addEventListener('click', closeInquiryModal);
+
+        // Close on overlay click
+        inquiryModal?.addEventListener('click', function(e) {
+            if (e.target === inquiryModal) closeInquiryModal();
+        });
+
+        // ══════════════════════════════════════════════
+        //  BILLING MODAL  (with fee breakdown)
+        // ══════════════════════════════════════════════
+        const billingOverlay = document.getElementById('billingModalOverlay');
+
+        function openBillingModal(type, data) {
+            document.getElementById('billingModalTitle').innerHTML =
+                type === 'pay' ?
+                '<i class="fas fa-wallet"></i> Pay Invoice' :
+                '<i class="fas fa-file-invoice"></i> Invoice Details';
+
+            document.getElementById('bmInvoiceRef').textContent = data.number;
+            document.getElementById('bmServiceName').textContent = data.service || '—';
+            document.getElementById('bmInvoiceAmount').textContent = data.amount;
+            document.getElementById('bmInvoiceStatus').textContent = data.statusLabel;
+
+            // Fee breakdown
+            const base = parseFloat(data.base) || 0;
+            const proc = parseFloat(data.proc) || 0;
+            const other = parseFloat(data.other) || 0;
+            const discount = parseFloat(data.discount) || 0;
+
+            document.getElementById('bmBaseFee').textContent = base > 0 ? '₱' + base.toFixed(2) : '—';
+            document.getElementById('bmProcFee').textContent = proc > 0 ? '₱' + proc.toFixed(2) : '—';
+
+            const otherRow = document.getElementById('bmOtherRow');
+            otherRow.style.display = other > 0 ? '' : 'none';
+            if (other > 0) document.getElementById('bmOtherFee').textContent = '₱' + other.toFixed(2);
+
+            const discRow = document.getElementById('bmDiscountRow');
+            discRow.style.display = discount > 0 ? '' : 'none';
+            if (discount > 0) document.getElementById('bmDiscount').textContent = '-₱' + discount.toFixed(2);
+
+            // Actions
+            const actionsEl = document.getElementById('billingModalActions');
+            actionsEl.innerHTML = '';
+            if (type === 'pay') {
+                const payBtn = document.createElement('button');
+                payBtn.className = 'btn-primary';
+                payBtn.innerHTML = '<i class="fas fa-credit-card"></i> Pay Now';
+                payBtn.onclick = () => window.location.href = 'invoice_view.php?id=' + data.id + '&mode=pay';
+                actionsEl.appendChild(payBtn);
+            } else {
+                const viewBtn = document.createElement('button');
+                viewBtn.className = 'btn-primary';
+                viewBtn.innerHTML = '<i class="fas fa-external-link-alt"></i> Open Invoice';
+                viewBtn.onclick = () => window.location.href = 'invoice_view.php?id=' + data.id;
+                actionsEl.appendChild(viewBtn);
+            }
+            const cancelBtn2 = document.createElement('button');
+            cancelBtn2.className = 'btn-light';
+            cancelBtn2.textContent = 'Close';
+            cancelBtn2.onclick = closeBillingModal;
+            actionsEl.appendChild(cancelBtn2);
+
+            billingOverlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeBillingModal() {
+            billingOverlay.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+
+        document.getElementById('closeBillingModal')?.addEventListener('click', closeBillingModal);
+        billingOverlay?.addEventListener('click', e => {
+            if (e.target === billingOverlay) closeBillingModal();
+        });
+
+        function getBillingData(btn) {
+            return {
+                id: btn.dataset.invoiceId,
+                number: btn.dataset.invoiceNumber,
+                amount: btn.dataset.invoiceAmount,
+                service: btn.dataset.invoiceService,
+                base: btn.dataset.invoiceBase,
+                proc: btn.dataset.invoiceProc,
+                other: btn.dataset.invoiceOther,
+                discount: btn.dataset.invoiceDiscount,
+                statusLabel: btn.dataset.invoiceStatus
+            };
+        }
+
+        document.querySelectorAll('.billing-pay-btn').forEach(btn => {
+            btn.addEventListener('click', () => openBillingModal('pay', getBillingData(btn)));
+        });
+        document.querySelectorAll('.billing-view-btn').forEach(btn => {
+            btn.addEventListener('click', () => openBillingModal('view', getBillingData(btn)));
+        });
+
+        // ══════════════════════════════════════════════
+        //  PASSWORD MODAL
+        // ══════════════════════════════════════════════
+        document.getElementById('openPasswordModal')?.addEventListener('click', () => {
+            document.getElementById('passwordModalOverlay').style.display = 'flex';
+        });
+        document.getElementById('closePasswordModal')?.addEventListener('click', () => {
+            document.getElementById('passwordModalOverlay').style.display = 'none';
+            document.getElementById('changePasswordForm').reset();
+            document.getElementById('passwordModalMsg').textContent = '';
+        });
+        document.getElementById('cancelPasswordModal')?.addEventListener('click', () => {
+            document.getElementById('closePasswordModal').click();
+        });
+        document.getElementById('changePasswordForm')?.addEventListener('submit', function(e) {
+            const np = document.getElementById('new_password').value;
+            const cp = document.getElementById('confirm_password').value;
+            if (np !== cp) {
+                document.getElementById('passwordModalMsg').textContent = 'New passwords do not match.';
                 e.preventDefault();
-                const targetId = href.substring(1);
-                handleSidebarClick(link, targetId);
+            }
+        });
+
+        // ══════════════════════════════════════════════
+        //  ALERTS AUTO-DISMISS
+        // ══════════════════════════════════════════════
+        document.addEventListener('DOMContentLoaded', () => {
+            ['alertSuccess', 'alertError'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) setTimeout(() => closeAlert(id), 5000);
             });
         });
 
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeProfileState();
-            showSection('profile');
-        });
+        function closeAlert(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('hide');
+                setTimeout(() => el.remove(), 400);
+            }
+        }
 
-        window.addEventListener('load', function() {
-            initializeProfileState();
-        });
+        // ══════════════════════════════════════════════
+        //  NAVBAR
+        // ══════════════════════════════════════════════
+        function toggleMenu() {
+            document.querySelector('.nav-links')?.classList.toggle('active');
+            document.querySelector('.hamburger')?.classList.toggle('active');
+        }
     </script>
-
 </body>
 
 </html>

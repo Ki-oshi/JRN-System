@@ -6,20 +6,26 @@ require_once '../includes/activity_logger.php';
 
 requireAdmin();
 
-$message = '';
+$message      = '';
 $message_type = '';
 
-// Handle status update
-if (isset($_POST['update_status'])) {
-    require_once '../includes/activity_logger.php';
+// ── Processing type display helpers ───────────────────────────────────────
+$proc_labels = [
+    'standard' => ['label' => 'Standard',  'color' => 'status--info'],
+    'priority' => ['label' => 'Priority',  'color' => 'status--warning'],
+    'express'  => ['label' => 'Express',   'color' => 'status--warning'],
+    'rush'     => ['label' => 'Rush',      'color' => 'status--error'],
+    'same_day' => ['label' => 'Same-Day',  'color' => 'status--error'],
+];
 
-    $inquiry_id = (int)$_POST['inquiry_id'];
-    $status = $_POST['status'];
+// ── Handle status update ───────────────────────────────────────────────────
+if (isset($_POST['update_status'])) {
+    $inquiry_id      = (int)$_POST['inquiry_id'];
+    $status          = $_POST['status'];
     $rejection_reason = trim($_POST['rejection_reason'] ?? '');
 
-    // Get inquiry details for logging
     $inquiry_stmt = $conn->prepare("
-        SELECT i.inquiry_number, i.service_name, i.status as old_status,
+        SELECT i.inquiry_number, i.service_name, i.processing_type, i.status as old_status,
                u.first_name, u.last_name, u.email
         FROM inquiries i
         LEFT JOIN users u ON i.user_id = u.id
@@ -30,98 +36,74 @@ if (isset($_POST['update_status'])) {
     $inquiry_details = $inquiry_stmt->get_result()->fetch_assoc();
 
     if (!$inquiry_details) {
-        $message = "Inquiry not found";
+        $message      = "Inquiry not found.";
         $message_type = "error";
     } elseif ($inquiry_details['old_status'] === 'rejected') {
-        $message = "Cannot modify a rejected inquiry. Rejected inquiries are final.";
+        $message      = "Cannot modify a rejected inquiry. Rejected inquiries are final.";
         $message_type = "error";
-
-        // Log attempt to modify rejected inquiry
+        $user_type    = (isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'employee')
+            ? ((isset($_SESSION['role']) && $_SESSION['role'] === 'admin') ? 'admin' : 'employee') : 'user';
         logActivity(
             $_SESSION['user_id'],
-            isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'employee'
-                ? ((isset($_SESSION['role']) && $_SESSION['role'] === 'admin') ? 'admin' : 'employee')
-                : 'user',
+            $user_type,
             'inquiry_update_failed',
             "Attempted to modify rejected inquiry #{$inquiry_details['inquiry_number']}"
         );
     } else {
-        // If status is rejected, rejection reason is required
         if ($status === 'rejected' && empty($rejection_reason)) {
-            $message = "Rejection reason is required when rejecting an inquiry";
+            $message      = "Rejection reason is required when rejecting an inquiry.";
             $message_type = "error";
         } else {
-            // Update with rejection reason if provided
             if ($status === 'rejected') {
-                $stmt = $conn->prepare("UPDATE inquiries SET status = ?, rejection_reason = ?, updated_at = NOW() WHERE id = ? AND status != 'rejected'");
+                $stmt = $conn->prepare("UPDATE inquiries SET status=?, rejection_reason=?, updated_at=NOW() WHERE id=? AND status!='rejected'");
                 $stmt->bind_param("ssi", $status, $rejection_reason, $inquiry_id);
             } else {
-                // Clear rejection reason if status is not rejected
-                $stmt = $conn->prepare("UPDATE inquiries SET status = ?, rejection_reason = NULL, updated_at = NOW() WHERE id = ? AND status != 'rejected'");
+                $stmt = $conn->prepare("UPDATE inquiries SET status=?, rejection_reason=NULL, updated_at=NOW() WHERE id=? AND status!='rejected'");
                 $stmt->bind_param("si", $status, $inquiry_id);
             }
 
             if ($stmt->execute() && $stmt->affected_rows > 0) {
-                $message = "Inquiry status updated successfully";
+                $message      = "Inquiry status updated successfully.";
                 $message_type = "success";
-
-                // Determine user type for logging
-                $user_type = 'user';
-                if (isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'employee') {
-                    $user_type = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') ? 'admin' : 'employee';
-                }
-
-                // Build description with user info
-                $user_info = $inquiry_details['first_name'] && $inquiry_details['last_name']
+                $user_type    = (isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'employee')
+                    ? ((isset($_SESSION['role']) && $_SESSION['role'] === 'admin') ? 'admin' : 'employee') : 'user';
+                $user_info = ($inquiry_details['first_name'] && $inquiry_details['last_name'])
                     ? "{$inquiry_details['first_name']} {$inquiry_details['last_name']}"
                     : $inquiry_details['email'];
-
-                $old_status_formatted = ucfirst(str_replace('_', ' ', $inquiry_details['old_status']));
-                $new_status_formatted = ucfirst(str_replace('_', ' ', $status));
-
-                // Create detailed log description
-                $log_description = "Updated inquiry #{$inquiry_details['inquiry_number']} for {$user_info} - " .
-                    "Service: {$inquiry_details['service_name']} - " .
-                    "Status changed from '{$old_status_formatted}' to '{$new_status_formatted}'";
-
-                // Add rejection reason to log if applicable
+                $old_f = ucfirst(str_replace('_', ' ', $inquiry_details['old_status']));
+                $new_f = ucfirst(str_replace('_', ' ', $status));
+                $log_desc = "Updated inquiry #{$inquiry_details['inquiry_number']} for {$user_info} – "
+                    . "Service: {$inquiry_details['service_name']} – "
+                    . "Status: '{$old_f}' → '{$new_f}'";
                 if ($status === 'rejected' && !empty($rejection_reason)) {
-                    $log_description .= " - Reason: " . substr($rejection_reason, 0, 100);
+                    $log_desc .= " – Reason: " . substr($rejection_reason, 0, 100);
                 }
-
-                // Log the inquiry status update
-                logActivity(
-                    $_SESSION['user_id'],
-                    $user_type,
-                    'inquiry_status_updated',
-                    $log_description
-                );
+                logActivity($_SESSION['user_id'], $user_type, 'inquiry_status_updated', $log_desc);
             } elseif ($stmt->affected_rows === 0) {
-                $message = "Cannot modify a rejected inquiry";
+                $message      = "Cannot modify a rejected inquiry.";
                 $message_type = "error";
             } else {
-                $message = "Error updating inquiry status";
+                $message      = "Error updating inquiry status.";
                 $message_type = "error";
             }
         }
     }
 }
-// Filter by status
-$filter = $_GET['filter'] ?? 'all';
+
+// ── Filters ────────────────────────────────────────────────────────────────
+$filter          = $_GET['filter'] ?? 'all';
 $allowed_filters = ['all', 'pending', 'in_review', 'completed', 'rejected'];
-if (!in_array($filter, $allowed_filters)) {
-    $filter = 'all';
-}
+if (!in_array($filter, $allowed_filters)) $filter = 'all';
 
-// Pending bills badge
-$stmt = $conn->prepare("SELECT COUNT(*) as pending_bills FROM billings WHERE status = 'unpaid'");
+// ── Pending bills badge ────────────────────────────────────────────────────
+$stmt = $conn->prepare("SELECT COUNT(*) as c FROM billings WHERE status='unpaid'");
 $stmt->execute();
-$pending_bills = $stmt->get_result()->fetch_assoc()['pending_bills'];
+$pending_bills = $stmt->get_result()->fetch_assoc()['c'];
 
-// Fetch inquiries with user information
+// ── Fetch inquiries ────────────────────────────────────────────────────────
 if ($filter === 'all') {
     $stmt = $conn->prepare("
-        SELECT i.*, 
+        SELECT i.*,
                u.first_name, u.last_name, u.email, u.phone, u.account_number,
                COUNT(d.id) as document_count
         FROM inquiries i
@@ -132,7 +114,7 @@ if ($filter === 'all') {
     ");
 } else {
     $stmt = $conn->prepare("
-        SELECT i.*, 
+        SELECT i.*,
                u.first_name, u.last_name, u.email, u.phone, u.account_number,
                COUNT(d.id) as document_count
         FROM inquiries i
@@ -144,11 +126,10 @@ if ($filter === 'all') {
     ");
     $stmt->bind_param("s", $filter);
 }
-
 $stmt->execute();
 $inquiries = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-// Count by status
+// ── Status counts ──────────────────────────────────────────────────────────
 $stmt = $conn->prepare("SELECT status, COUNT(*) as count FROM inquiries GROUP BY status");
 $stmt->execute();
 $status_counts = [];
@@ -157,16 +138,13 @@ foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
 }
 $total_inquiries = array_sum($status_counts);
 
-// Get admin info
+// ── Admin info ─────────────────────────────────────────────────────────────
 $is_from_employees = isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'employee';
-if ($is_from_employees) {
-    $stmt = $conn->prepare("SELECT * FROM employees WHERE id = ?");
-} else {
-    $stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
-}
-$stmt->bind_param("i", $_SESSION['user_id']);
-$stmt->execute();
-$admin = $stmt->get_result()->fetch_assoc();
+$tbl = $is_from_employees ? 'employees' : 'users';
+$s   = $conn->prepare("SELECT * FROM {$tbl} WHERE id = ?");
+$s->bind_param("i", $_SESSION['user_id']);
+$s->execute();
+$admin = $s->get_result()->fetch_assoc();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -174,13 +152,53 @@ $admin = $stmt->get_result()->fetch_assoc();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inquiries Management - JRN Admin</title>
+    <title>Inquiries Management – JRN Admin</title>
     <link rel="stylesheet" href="assets/css/index-admin.css">
     <link rel="stylesheet" href="assets/css/inquiries-admin.css">
     <link rel="stylesheet" href="assets/css/logout-modal.css">
+    <style>
+        /* Processing type pill overrides */
+        .proc-pill {
+            display: inline-block;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+
+        .proc-standard {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .proc-priority {
+            background: #ede9fe;
+            color: #5b21b6;
+        }
+
+        .proc-express {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .proc-rush {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .proc-same_day {
+            background: #fce7f3;
+            color: #9d174d;
+        }
+    </style>
 </head>
 
 <body>
+
+    <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
     <aside class="sidebar">
         <div class="sidebar-header">
             <div class="sidebar-logo">
@@ -198,17 +216,12 @@ $admin = $stmt->get_result()->fetch_assoc();
                 </svg>
                 Dashboard
             </a>
-
             <a href="inquiries-admin.php" class="nav-item active">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                 </svg>
                 Inquiries
-                <?php if (isset($pending_inquiries) && $pending_inquiries > 0): ?>
-                    <span class="badge"><?php echo $pending_inquiries; ?></span>
-                <?php endif; ?>
             </a>
-
             <?php if (isAdmin()): ?>
                 <a href="billing-admin.php" class="nav-item">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -218,12 +231,11 @@ $admin = $stmt->get_result()->fetch_assoc();
                         <line x1="7" y1="19" x2="15" y2="19" />
                     </svg>
                     Billing
-                    <?php if (isset($pending_bills) && $pending_bills > 0): ?>
+                    <?php if ($pending_bills > 0): ?>
                         <span class="badge"><?php echo $pending_bills; ?></span>
                     <?php endif; ?>
                 </a>
             <?php endif; ?>
-
             <a href="users-admin.php" class="nav-item">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="9" cy="7" r="4"></circle>
@@ -231,7 +243,6 @@ $admin = $stmt->get_result()->fetch_assoc();
                 </svg>
                 Users
             </a>
-
             <?php if (isAdmin()): ?>
                 <a href="employees-admin.php" class="nav-item">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -257,9 +268,17 @@ $admin = $stmt->get_result()->fetch_assoc();
                     </svg>
                     Manage Services
                 </a>
+                <a href="payroll-reports-admin.php" class="nav-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" />
+                        <line x1="8" y1="21" x2="16" y2="21" />
+                        <line x1="12" y1="17" x2="12" y2="21" />
+                        <path d="M6 8h.01M10 8h4M6 12h12" />
+                    </svg>
+                    Payroll Reports
+                </a>
             <?php endif; ?>
-
-            <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+            <div style="margin-top:auto;padding-top:1rem;border-top:1px solid var(--border-color);">
                 <a href="admin-account.php" class="nav-item">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="3"></circle>
@@ -281,7 +300,6 @@ $admin = $stmt->get_result()->fetch_assoc();
         </div>
     </aside>
 
-    <!-- Logout Modal -->
     <?php if (isset($_SESSION['user_id'])): ?>
         <div class="logout-modal-overlay" id="logout-modal-overlay">
             <div class="logout-modal">
@@ -294,9 +312,9 @@ $admin = $stmt->get_result()->fetch_assoc();
             </div>
         </div>
     <?php endif; ?>
-
     <script src="assets/js/logout-modal.js"></script>
 
+    <!-- ── Main Content ─────────────────────────────────────────────────────── -->
     <main class="main-content">
         <header class="admin-header">
             <div class="admin-header-left">
@@ -332,32 +350,18 @@ $admin = $stmt->get_result()->fetch_assoc();
 
         <!-- Filter Tabs -->
         <div class="filter-tabs">
-            <a href="?filter=all" class="filter-tab <?php echo $filter === 'all' ? 'active' : ''; ?>">
-                All Inquiries
-                <span class="count"><?php echo $total_inquiries; ?></span>
-            </a>
-            <a href="?filter=pending" class="filter-tab <?php echo $filter === 'pending' ? 'active' : ''; ?>">
-                Pending
-                <span class="count"><?php echo $status_counts['pending'] ?? 0; ?></span>
-            </a>
-            <a href="?filter=in_review" class="filter-tab <?php echo $filter === 'in_review' ? 'active' : ''; ?>">
-                In Review
-                <span class="count"><?php echo $status_counts['in_review'] ?? 0; ?></span>
-            </a>
-            <a href="?filter=completed" class="filter-tab <?php echo $filter === 'completed' ? 'active' : ''; ?>">
-                Completed
-                <span class="count"><?php echo $status_counts['completed'] ?? 0; ?></span>
-            </a>
-            <a href="?filter=rejected" class="filter-tab <?php echo $filter === 'rejected' ? 'active' : ''; ?>">
-                Rejected
-                <span class="count"><?php echo $status_counts['rejected'] ?? 0; ?></span>
-            </a>
+            <a href="?filter=all" class="filter-tab <?php echo $filter === 'all'       ? 'active' : ''; ?>">All Inquiries <span class="count"><?php echo $total_inquiries; ?></span></a>
+            <a href="?filter=pending" class="filter-tab <?php echo $filter === 'pending'   ? 'active' : ''; ?>">Pending <span class="count"><?php echo $status_counts['pending']   ?? 0; ?></span></a>
+            <a href="?filter=in_review" class="filter-tab <?php echo $filter === 'in_review' ? 'active' : ''; ?>">In Review <span class="count"><?php echo $status_counts['in_review'] ?? 0; ?></span></a>
+            <a href="?filter=completed" class="filter-tab <?php echo $filter === 'completed' ? 'active' : ''; ?>">Completed <span class="count"><?php echo $status_counts['completed'] ?? 0; ?></span></a>
+            <a href="?filter=rejected" class="filter-tab <?php echo $filter === 'rejected'  ? 'active' : ''; ?>">Rejected <span class="count"><?php echo $status_counts['rejected']  ?? 0; ?></span></a>
         </div>
 
         <div class="card">
             <div class="card-header">
                 <h2><?php echo ucfirst(str_replace('_', ' ', $filter)); ?> Inquiries (<?php echo count($inquiries); ?>)</h2>
             </div>
+
             <?php if (count($inquiries) > 0): ?>
                 <table class="data-table">
                     <thead>
@@ -366,6 +370,8 @@ $admin = $stmt->get_result()->fetch_assoc();
                             <th>Account #</th>
                             <th>User</th>
                             <th>Service</th>
+                            <th>Processing</th>
+                            <th>Fee</th>
                             <th>Documents</th>
                             <th>Status</th>
                             <th>Submitted</th>
@@ -374,6 +380,18 @@ $admin = $stmt->get_result()->fetch_assoc();
                     </thead>
                     <tbody>
                         <?php foreach ($inquiries as $inquiry): ?>
+                            <?php
+                            $pt      = $inquiry['processing_type'] ?? 'standard';
+                            $ptClass = 'proc-' . $pt;
+                            $ptLabel = $proc_labels[$pt]['label'] ?? ucfirst(str_replace('_', ' ', $pt));
+                            $statusClass = match ($inquiry['status']) {
+                                'pending'   => 'status--warning',
+                                'in_review' => 'status--info',
+                                'completed' => 'status--success',
+                                'rejected'  => 'status--error',
+                                default     => 'status--secondary'
+                            };
+                            ?>
                             <tr>
                                 <td>
                                     <code style="font-size:0.75rem;color:var(--primary);font-weight:600;">
@@ -388,13 +406,9 @@ $admin = $stmt->get_result()->fetch_assoc();
                                 <td>
                                     <div class="contact-cell">
                                         <strong>
-                                            <?php
-                                            if (!empty($inquiry['first_name']) && !empty($inquiry['last_name'])) {
-                                                echo htmlspecialchars($inquiry['first_name'] . ' ' . $inquiry['last_name']);
-                                            } else {
-                                                echo 'Unknown User';
-                                            }
-                                            ?>
+                                            <?php echo (!empty($inquiry['first_name']) && !empty($inquiry['last_name']))
+                                                ? htmlspecialchars($inquiry['first_name'] . ' ' . $inquiry['last_name'])
+                                                : 'Unknown User'; ?>
                                         </strong>
                                         <small><?php echo htmlspecialchars($inquiry['email'] ?? 'N/A'); ?></small>
                                     </div>
@@ -402,7 +416,20 @@ $admin = $stmt->get_result()->fetch_assoc();
                                 <td>
                                     <strong><?php echo htmlspecialchars($inquiry['service_name']); ?></strong>
                                     <?php if (!empty($inquiry['additional_notes'])): ?>
-                                        <p class="message-preview"><?php echo htmlspecialchars(substr($inquiry['additional_notes'], 0, 60)) . '...'; ?></p>
+                                        <p class="message-preview"><?php echo htmlspecialchars(substr($inquiry['additional_notes'], 0, 50)) . '…'; ?></p>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <span class="proc-pill <?php echo $ptClass; ?>"><?php echo $ptLabel; ?></span>
+                                </td>
+                                <td>
+                                    <strong style="color:var(--primary);font-size:0.85rem;">
+                                        ₱<?php echo number_format($inquiry['price'] ?? 0, 2); ?>
+                                    </strong>
+                                    <?php if (!empty($inquiry['base_price']) && $inquiry['base_price'] != $inquiry['price']): ?>
+                                        <small style="display:block;color:var(--text-secondary);text-decoration:line-through;">
+                                            ₱<?php echo number_format($inquiry['base_price'], 2); ?>
+                                        </small>
                                     <?php endif; ?>
                                 </td>
                                 <td>
@@ -419,15 +446,6 @@ $admin = $stmt->get_result()->fetch_assoc();
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <?php
-                                    $statusClass = match ($inquiry['status']) {
-                                        'pending'   => 'status--warning',
-                                        'in_review' => 'status--info',
-                                        'completed' => 'status--success',
-                                        'rejected'  => 'status--error',
-                                        default     => 'status--secondary'
-                                    };
-                                    ?>
                                     <span class="status <?php echo $statusClass; ?>">
                                         <?php echo ucfirst(str_replace('_', ' ', $inquiry['status'])); ?>
                                     </span>
@@ -435,13 +453,15 @@ $admin = $stmt->get_result()->fetch_assoc();
                                 <td><?php echo date('M d, Y', strtotime($inquiry['created_at'])); ?></td>
                                 <td>
                                     <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                                        <button class="btn btn--sm btn--outline" onclick="viewInquiry(<?php echo $inquiry['id']; ?>)">View</button>
+                                        <button class="btn btn--sm btn--outline"
+                                            onclick="viewInquiry(<?php echo $inquiry['id']; ?>)">View</button>
                                         <?php if ($inquiry['status'] !== 'rejected'): ?>
-                                            <button class="btn btn--sm btn--primary" onclick="updateStatus(<?php echo $inquiry['id']; ?>, '<?php echo $inquiry['status']; ?>')">Update</button>
+                                            <button class="btn btn--sm btn--primary"
+                                                onclick="updateStatus(<?php echo $inquiry['id']; ?>, '<?php echo $inquiry['status']; ?>')">Update</button>
                                         <?php else: ?>
-                                            <span class="btn btn--sm" style="background:var(--gray-200);color:var(--text-secondary);cursor:not-allowed;" title="Rejected inquiries cannot be modified">
-                                                Rejected
-                                            </span>
+                                            <span class="btn btn--sm"
+                                                style="background:var(--gray-200);color:var(--text-secondary);cursor:not-allowed;"
+                                                title="Rejected inquiries cannot be modified">Rejected</span>
                                         <?php endif; ?>
                                     </div>
                                 </td>
@@ -454,13 +474,13 @@ $admin = $stmt->get_result()->fetch_assoc();
                     <svg width="64" height="64" fill="none" stroke="currentColor" stroke-width="1.5">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                     </svg>
-                    <p>No <?php echo $filter === 'all' ? '' : $filter; ?> inquiries found</p>
+                    <p>No <?php echo $filter === 'all' ? '' : $filter; ?> inquiries found.</p>
                 </div>
             <?php endif; ?>
         </div>
     </main>
 
-    <!-- View Inquiry Modal -->
+    <!-- ── View Modal ────────────────────────────────────────────────────────── -->
     <div id="viewModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -471,7 +491,7 @@ $admin = $stmt->get_result()->fetch_assoc();
         </div>
     </div>
 
-    <!-- Update Status Modal -->
+    <!-- ── Update Status Modal ───────────────────────────────────────────────── -->
     <div id="updateModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -491,10 +511,9 @@ $admin = $stmt->get_result()->fetch_assoc();
                 </div>
                 <div class="form-group" id="rejectionReasonGroup" style="display:none;">
                     <label>Rejection Reason <span style="color:var(--danger);">*</span></label>
-                    <textarea name="rejection_reason" id="rejectionReason" class="form-control" rows="4" placeholder="Please provide a detailed reason for rejecting this inquiry..."></textarea>
-                    <small style="color:var(--text-secondary);display:block;margin-top:0.5rem;">
-                        This will be visible to the user.
-                    </small>
+                    <textarea name="rejection_reason" id="rejectionReason" class="form-control" rows="4"
+                        placeholder="Please provide a detailed reason for rejecting this inquiry..."></textarea>
+                    <small style="color:var(--text-secondary);display:block;margin-top:0.5rem;">This will be visible to the user.</small>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" name="update_status" class="btn btn--primary">Update Status</button>
@@ -505,39 +524,54 @@ $admin = $stmt->get_result()->fetch_assoc();
     </div>
 
     <script>
+        // Theme toggle
         const themeToggle = document.getElementById('themeToggle');
         const htmlElement = document.documentElement;
-        const currentTheme = localStorage.getItem('theme') || 'light';
-        htmlElement.setAttribute('data-theme', currentTheme);
+        htmlElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
         themeToggle.addEventListener('click', () => {
-            const theme = htmlElement.getAttribute('data-theme');
-            const newTheme = theme === 'light' ? 'dark' : 'light';
+            const newTheme = htmlElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
             htmlElement.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
         });
 
         const inquiries = <?php echo json_encode($inquiries); ?>;
 
+        const procMeta = {
+            standard: {
+                label: 'Standard Processing',
+                cls: 'proc-standard'
+            },
+            priority: {
+                label: 'Priority Processing',
+                cls: 'proc-priority'
+            },
+            express: {
+                label: 'Express Processing',
+                cls: 'proc-express'
+            },
+            rush: {
+                label: 'Rush Processing',
+                cls: 'proc-rush'
+            },
+            same_day: {
+                label: 'Same-Day Priority',
+                cls: 'proc-same_day'
+            },
+        };
+
+        function fmtPrice(v) {
+            return '₱' + parseFloat(v || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
         function generateMaskedName() {
-            const length = 16;
-            const required = "JRN"; // must appear somewhere
+            const req = "JRN";
             const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}";
-
-            // Start with required token
-            let result = required.split("");
-
-            // Fill remaining characters randomly
-            while (result.length < length) {
-                const randomChar = chars.charAt(Math.floor(Math.random() * chars.length));
-                result.push(randomChar);
-            }
-
-            // Shuffle to mix JRN into random positions
+            let result = req.split("");
+            while (result.length < 16) result.push(chars.charAt(Math.floor(Math.random() * chars.length)));
             for (let i = result.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [result[i], result[j]] = [result[j], result[i]];
             }
-
             return result.join("");
         }
 
@@ -546,148 +580,145 @@ $admin = $stmt->get_result()->fetch_assoc();
             if (!inquiry) return;
 
             fetch(`get_inquiry_documents.php?inquiry_id=${id}`)
-                .then(res => {
-                    if (!res.ok) {
-                        console.error('Documents request failed:', res.status, res.statusText);
-                        return [];
-                    }
-                    return res.text().then(text => {
-                        if (!text) {
-                            return [];
-                        }
-                        try {
-                            return JSON.parse(text);
-                        } catch (e) {
-                            console.error('Invalid JSON from get_inquiry_documents.php:', text);
-                            return [];
-                        }
-                    });
-                })
-                .then(documents => {
-                    let documentsHtml = '';
+                .then(r => r.ok ? r.text() : '[]')
+                .then(text => {
+                    let documents = [];
+                    try {
+                        documents = JSON.parse(text);
+                    } catch (e) {}
+
+                    const pt = inquiry.processing_type || 'standard';
+                    const ptMeta = procMeta[pt] || {
+                        label: pt,
+                        cls: 'proc-standard'
+                    };
+                    const basePx = parseFloat(inquiry.base_price || 0);
+                    const finalPx = parseFloat(inquiry.price || 0);
+
+                    let docsHtml = '';
                     if (documents.length > 0) {
-                        documentsHtml = `
-        <div class="detail-row full">
-            <strong>Attached Documents:</strong>
-            <div style="margin-top: 0.5rem;">
-                ${documents.map(doc => `
-                    <div style="padding: 0.5rem; background: var(--gray-100); border-radius: 6px; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong>${generateMaskedName()}</strong>
-<small style="display: block; color: var(--text-secondary);">
-    ${doc.id_type ? doc.id_type + ' • ' : ''}${(doc.file_size / 1024).toFixed(2)} KB
-</small>
-                        </div>
-                        <a href="../download_document.php?id=${doc.id}" target="_blank" class="btn btn--sm btn--outline">Download</a>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-    `;
+                        docsHtml = `<div class="detail-row full"><strong>Attached Documents:</strong>
+                        <div style="margin-top:0.5rem;">
+                        ${documents.map(doc => `
+                            <div style="padding:0.5rem;background:var(--gray-100);border-radius:6px;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center;">
+                                <div>
+                                    <strong>${generateMaskedName()}</strong>
+                                    <small style="display:block;color:var(--text-secondary);">
+                                        ${doc.id_type ? doc.id_type + ' • ' : ''}${(doc.file_size / 1024).toFixed(2)} KB
+                                    </small>
+                                </div>
+                                <a href="../download_document.php?id=${doc.id}" target="_blank" class="btn btn--sm btn--outline">Download</a>
+                            </div>`).join('')}
+                        </div></div>`;
                     }
 
                     document.getElementById('modalBody').innerHTML = `
-                        <div class="inquiry-detail">
-                            <div class="detail-row">
-                                <strong>Inquiry Number:</strong>
-                                <span style="color:var(--primary);font-weight:600;font-family:monospace;">${inquiry.inquiry_number || 'N/A'}</span>
-                            </div>
-                            <div class="detail-row">
-                                <strong>User:</strong>
-                                <span>${inquiry.first_name ? inquiry.first_name + ' ' + inquiry.last_name : 'Unknown'}</span>
-                            </div>
-                            <div class="detail-row">
-                                <strong>Account #:</strong>
-                                <span>${inquiry.account_number || 'N/A'}</span>
-                            </div>
-                            <div class="detail-row">
-                                <strong>Email:</strong>
-                                <span>${inquiry.email || 'N/A'}</span>
-                            </div>
-                            <div class="detail-row">
-                                <strong>Phone:</strong>
-                                <span>${inquiry.phone || 'N/A'}</span>
-                            </div>
-                            <div class="detail-row">
-                                <strong>Service:</strong>
-                                <span>${inquiry.service_name}</span>
-                            </div>
-                            ${inquiry.additional_notes ? `
-                            <div class="detail-row full">
-                                <strong>Additional Notes:</strong>
-                                <p style="margin-top:0.5rem;white-space:pre-wrap;">${inquiry.additional_notes}</p>
-                            </div>
-                            ` : ''}
-                            ${documentsHtml}
-                            <div class="detail-row">
-                                <strong>Status:</strong>
-                                <span style="${inquiry.status === 'rejected' ? 'color:var(--danger);font-weight:600;' : ''}">
-                                    ${inquiry.status.replace('_',' ').charAt(0).toUpperCase() + inquiry.status.slice(1).replace('_',' ')}
-                                </span>
-                            </div>
-                            ${inquiry.status === 'rejected' && inquiry.rejection_reason ? `
-                            <div class="detail-row full">
-                                <strong>Rejection Reason:</strong>
-                                <p style="margin-top:0.5rem;padding:0.75rem;background:rgba(239,68,68,0.1);border-left:3px solid var(--danger);border-radius:6px;color:var(--text-primary);">
-                                    ${inquiry.rejection_reason}
-                                </p>
-                                <small style="display:block;margin-top:0.5rem;color:var(--text-secondary);font-style:italic;">
-                                    This inquiry has been permanently rejected and cannot be modified.
-                                </small>
-                            </div>
-                            ` : ''}
-                            <div class="detail-row">
-                                <strong>Submitted:</strong>
-                                <span>${new Date(inquiry.created_at).toLocaleString()}</span>
-                            </div>
-                            <div class="detail-row">
-                                <strong>Last Updated:</strong>
-                                <span>${new Date(inquiry.updated_at).toLocaleString()}</span>
-                            </div>
+                    <div class="inquiry-detail">
+                        <div class="detail-row">
+                            <strong>Inquiry #:</strong>
+                            <span style="color:var(--primary);font-weight:600;font-family:monospace;">
+                                ${inquiry.inquiry_number || 'N/A'}
+                            </span>
                         </div>
-                    `;
+                        <div class="detail-row">
+                            <strong>User:</strong>
+                            <span>${inquiry.first_name ? inquiry.first_name + ' ' + inquiry.last_name : 'Unknown'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <strong>Account #:</strong>
+                            <span>${inquiry.account_number || 'N/A'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <strong>Email:</strong>
+                            <span>${inquiry.email || 'N/A'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <strong>Phone:</strong>
+                            <span>${inquiry.phone || 'N/A'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <strong>Service:</strong>
+                            <span>${inquiry.service_name}</span>
+                        </div>
+                        <div class="detail-row">
+                            <strong>Processing Type:</strong>
+                            <span class="proc-pill ${ptMeta.cls}">${ptMeta.label}</span>
+                        </div>
+                        <div class="detail-row">
+                            <strong>Base Price:</strong>
+                            <span>${fmtPrice(basePx)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <strong>Service Fee:</strong>
+                            <span style="color:var(--primary);font-weight:700;">${fmtPrice(finalPx)}</span>
+                        </div>
+                        ${inquiry.additional_notes ? `
+                        <div class="detail-row full">
+                            <strong>Additional Notes:</strong>
+                            <p style="margin-top:0.5rem;white-space:pre-wrap;">${inquiry.additional_notes}</p>
+                        </div>` : ''}
+                        ${docsHtml}
+                        <div class="detail-row">
+                            <strong>Status:</strong>
+                            <span style="${inquiry.status === 'rejected' ? 'color:var(--danger);font-weight:600;' : ''}">
+                                ${inquiry.status.replace('_',' ').replace(/^\w/, c => c.toUpperCase()).replace(/_(\w)/g, (m,c) => ' '+c.toUpperCase())}
+                            </span>
+                        </div>
+                        ${inquiry.status === 'rejected' && inquiry.rejection_reason ? `
+                        <div class="detail-row full">
+                            <strong>Rejection Reason:</strong>
+                            <p style="margin-top:0.5rem;padding:0.75rem;background:rgba(239,68,68,0.1);border-left:3px solid var(--danger);border-radius:6px;">
+                                ${inquiry.rejection_reason}
+                            </p>
+                            <small style="display:block;margin-top:0.5rem;color:var(--text-secondary);font-style:italic;">
+                                This inquiry has been permanently rejected and cannot be modified.
+                            </small>
+                        </div>` : ''}
+                        <div class="detail-row">
+                            <strong>Submitted:</strong>
+                            <span>${new Date(inquiry.created_at).toLocaleString()}</span>
+                        </div>
+                        <div class="detail-row">
+                            <strong>Last Updated:</strong>
+                            <span>${new Date(inquiry.updated_at).toLocaleString()}</span>
+                        </div>
+                    </div>
+                `;
                     document.getElementById('viewModal').classList.add('active');
                 })
                 .catch(err => {
                     console.error('Error loading documents:', err);
-                    alert('Error loading documents, check console for details.');
+                    alert('Error loading inquiry details.');
                 });
         }
 
         function updateStatus(id, currentStatus) {
             document.getElementById('updateInquiryId').value = id;
             document.getElementById('updateStatus').value = currentStatus;
+            toggleRejectionReason();
             document.getElementById('updateModal').classList.add('active');
         }
 
         function toggleRejectionReason() {
             const status = document.getElementById('updateStatus').value;
-            const rejectionGroup = document.getElementById('rejectionReasonGroup');
-            const rejectionTextarea = document.getElementById('rejectionReason');
-
+            const grp = document.getElementById('rejectionReasonGroup');
+            const textarea = document.getElementById('rejectionReason');
             if (status === 'rejected') {
-                rejectionGroup.style.display = 'block';
-                rejectionTextarea.required = true;
+                grp.style.display = 'block';
+                textarea.required = true;
             } else {
-                rejectionGroup.style.display = 'none';
-                rejectionTextarea.required = false;
-                rejectionTextarea.value = '';
+                grp.style.display = 'none';
+                textarea.required = false;
+                textarea.value = '';
             }
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            toggleRejectionReason();
-        });
-
-        function closeModal(modalId) {
-            document.getElementById(modalId).classList.remove('active');
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
         }
-
-        window.onclick = function(event) {
-            if (event.target.classList.contains('modal')) {
-                event.target.classList.remove('active');
-            }
-        }
+        window.onclick = e => {
+            if (e.target.classList.contains('modal')) e.target.classList.remove('active');
+        };
     </script>
 </body>
 
