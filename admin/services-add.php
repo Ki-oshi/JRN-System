@@ -8,18 +8,15 @@ requireAdmin();
 $error = "";
 $success = "";
 
-
-$id = intval($_GET['id'] ?? 0);
+// Fetch service
 $stmt = $conn->prepare("SELECT * FROM services WHERE id = ?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
+$service = $stmt->get_result()->fetch_assoc(); // Fetch the result here
 
-$service = $stmt->get_result()->fetch_assoc();
-if (!$service) {
-    die("Service not found.");
-}
+
 $originalService = $service;
-// Processing type multipliers (for auto-fill reference)
+
 $proc_multipliers = [
     'standard' => 1.00,
     'priority' => 1.15,
@@ -28,35 +25,39 @@ $proc_multipliers = [
     'same_day' => 1.70
 ];
 
+// Form processing
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name              = trim($_POST['name']);
-    $slug              = trim($_POST['slug']);
-    $category          = trim($_POST['category']);
+    // Get form data
+    $name = trim($_POST['name']);
+    $slug = trim($_POST['slug']);
+    $category = trim($_POST['category']);
     $short_description = trim($_POST['short_description']);
-    $long_description  = $_POST['long_description'];
-    $is_active         = isset($_POST['is_active']) ? 1 : 0;
-    $admin_id          = $_SESSION['user_id'];
-    $image_path        = '';
+    $long_description = $_POST['long_description'];
+    $is_active = isset($_POST['is_active']) ? 1 : 0;
+    $admin_id = $_SESSION['user_id'];
+    $image_path = ''; // Default image path
 
+    // Default values for prices and statuses
     $price = isset($_POST['price']) ? floatval($_POST['price']) : 0.00;
-
     $standard_price = isset($_POST['standard_price']) ? floatval($_POST['standard_price']) : 0.00;
     $priority_price = isset($_POST['priority_price']) ? floatval($_POST['priority_price']) : 0.00;
-    $express_price  = isset($_POST['express_price']) ? floatval($_POST['express_price']) : 0.00;
-    $rush_price     = isset($_POST['rush_price']) ? floatval($_POST['rush_price']) : 0.00;
+    $express_price = isset($_POST['express_price']) ? floatval($_POST['express_price']) : 0.00;
+    $rush_price = isset($_POST['rush_price']) ? floatval($_POST['rush_price']) : 0.00;
     $same_day_price = isset($_POST['same_day_price']) ? floatval($_POST['same_day_price']) : 0.00;
 
     $standard_status = isset($_POST['standard_status']) ? 1 : 0;
     $priority_status = isset($_POST['priority_status']) ? 1 : 0;
-    $express_status  = isset($_POST['express_status']) ? 1 : 0;
-    $rush_status     = isset($_POST['rush_status']) ? 1 : 0;
+    $express_status = isset($_POST['express_status']) ? 1 : 0;
+    $rush_status = isset($_POST['rush_status']) ? 1 : 0;
     $same_day_status = isset($_POST['same_day_status']) ? 1 : 0;
 
+    // Validations
     if (empty($name) || empty($slug) || empty($category)) {
         $error = "Service name, slug, and category are required.";
     } else {
-        $stmt = $conn->prepare("SELECT id FROM services WHERE slug = ?");
-        $stmt->bind_param("s", $slug);
+        // Check if the slug is unique
+        $stmt = $conn->prepare("SELECT id FROM services WHERE slug = ? AND id != ?");
+        $stmt->bind_param("si", $slug, $id);
         $stmt->execute();
 
         if ($stmt->get_result()->num_rows > 0) {
@@ -64,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // File upload logic
     if (!$error && isset($_FILES['image']) && $_FILES['image']['error'] == UPLOAD_ERR_OK) {
         $target_dir = "../uploads/services/";
         if (!is_dir($target_dir)) mkdir($target_dir, 0777, true);
@@ -83,22 +85,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Inserting/updating the service record
     if (!$error) {
         $stmt = $conn->prepare("
-        INSERT INTO services (
-            name, slug, category, price,
-            standard_price, priority_price, express_price, rush_price, same_day_price,
-            standard_status, priority_status, express_status, rush_status, same_day_status,
-            short_description, long_description, image, is_active, created_by
-        ) VALUES (
-            ?, ?, ?, ?,
-            ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?
-        )
-    ");
+            UPDATE services SET
+                name=?, slug=?, category=?, price=?, standard_price=?, priority_price=?, express_price=?,
+                rush_price=?, same_day_price=?, standard_status=?, priority_status=?, express_status=?,
+                rush_status=?, same_day_status=?, short_description=?, long_description=?, image=?, is_active=?
+            WHERE id=?
+        ");
+
         $stmt->bind_param(
-            "sssddddddiiiiisssii",
+            "sssddddddiiiiisssi",
             $name,
             $slug,
             $category,
@@ -117,56 +115,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $long_description,
             $image_path,
             $is_active,
-            $admin_id
+            $id
         );
 
         if ($stmt->execute()) {
-            $newServiceId = $stmt->insert_id;
-
-            // Insert service requirements
-            if (!empty($_POST['requirements'])) {
-                $insertReq = $conn->prepare("
-            INSERT INTO service_requirements
-            (service_id, requirement_text, requires_id_type, sort_order)
-            VALUES (?, ?, ?, ?)
-        ");
-
-                foreach ($_POST['requirements'] as $index => $reqText) {
-                    $reqText = trim($reqText);
-
-                    if ($reqText === '') continue;
-
-                    $requiresId = isset($_POST['requirements_id'][$index]) ? 1 : 0;
-                    $sortOrder  = $index + 1;
-
-                    $insertReq->bind_param(
-                        "isii",
-                        $newServiceId,
-                        $reqText,
-                        $requiresId,
-                        $sortOrder
-                    );
-                    $insertReq->execute();
-                }
-
-                $insertReq->close();
-            }
-
-            logActivity(
-                $admin_id,
-                'admin',
-                'service_created',
-                "Service {$name} (ID {$newServiceId}) created."
-            );
-
-            header("Location: services-admin.php?added=1");
+            header("Location: services-admin.php?edited=1");
             exit;
         } else {
-            $error = "Failed to add service.";
+            $error = "Failed to update service.";
         }
     }
 }
 
+// Fetching the counts for pending inquiries and unpaid bills
 $stmt = $conn->prepare("SELECT COUNT(*) as pending_count FROM inquiries WHERE status = 'pending'");
 $stmt->execute();
 $pending_inquiries = $stmt->get_result()->fetch_assoc()['pending_count'];
