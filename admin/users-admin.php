@@ -191,6 +191,487 @@ $pending_bills = $stmt->get_result()->fetch_assoc()['pending_bills'];
     <link rel="stylesheet" href="assets/css/index-admin.css">
     <link rel="stylesheet" href="assets/css/users-admin.css">
     <link rel="stylesheet" href="assets/css/logout-modal.css">
+
+
+    <style>
+        /* ══════════════════════════════════════════
+           FORCE LIGHT MODE — no dark mode anywhere
+        ══════════════════════════════════════════ */
+        :root {
+            color-scheme: light only !important;
+            --primary: #0F3A40;
+            --primary-mid: #1a5560;
+            --primary-light: #e8f4f5;
+            --accent: #2fb8c4;
+            --accent-soft: #e0f7fa;
+            --gold: #f59e0b;
+            --gold-soft: #fef3c7;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --bg-page: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-secondary: #f1f5f9;
+            --border-color: #e2e8f0;
+            --border-strong: #cbd5e1;
+            --green: #16a34a;
+            --green-soft: #dcfce7;
+            --green-border: #bbf7d0;
+            --red: #dc2626;
+            --red-soft: #fee2e2;
+            --red-border: #fecaca;
+            --amber: #d97706;
+            --amber-soft: #fef9c3;
+            --amber-border: #fde68a;
+            --slate: #64748b;
+            --slate-soft: #f1f5f9;
+            --slate-border: #e2e8f0;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.10);
+            --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.13);
+            --r-sm: 8px;
+            --r-md: 12px;
+            --r-lg: 16px;
+            --r-xl: 20px;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg-page) !important;
+            color: var(--text-primary) !important;
+            font-family: 'DM Sans', -apple-system, sans-serif !important;
+        }
+
+        /* ── Stats strip ── */
+        .stats-strip {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 0.85rem;
+            margin-bottom: 1.25rem;
+        }
+
+        @media (max-width: 1100px) {
+            .stats-strip {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .stats-strip {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .stat-card {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-lg);
+            padding: 1.10rem 0.41rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+
+        .stat-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: var(--r-lg) var(--r-lg) 0 0;
+        }
+
+        .stat-card.c-total::before {
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+        }
+
+        .stat-card.c-paid::before {
+            background: var(--green);
+        }
+
+        .stat-card.c-unpaid::before {
+            background: var(--red);
+        }
+
+        .stat-card.c-pending::before {
+            background: var(--amber);
+        }
+
+        .stat-card.c-cancelled::before {
+            background: var(--slate);
+        }
+
+        .stat-card.c-revenue::before {
+            background: linear-gradient(90deg, var(--gold), #f97316);
+        }
+
+        .stat-label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.09em;
+            color: var(--text-muted);
+            margin: 0 0 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 1.65rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .stat-value.v-paid {
+            color: var(--green);
+        }
+
+        .stat-value.v-unpaid {
+            color: var(--red);
+        }
+
+        .stat-value.v-pending {
+            color: var(--amber);
+        }
+
+        .stat-value.v-revenue {
+            color: var(--primary);
+            font-size: 1.2rem;
+        }
+
+        .stat-value.v-outstanding {
+            color: var(--red);
+            font-size: 1.2rem;
+        }
+
+        .stat-sub {
+            font-size: 0.62rem;
+            color: var(--text-muted);
+            margin-top: 0.35rem;
+        }
+
+
+        /* ── Filter bar ── */
+        .filter-zone {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-lg);
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.1rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            align-items: flex-end;
+        }
+
+        .filter-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .filter-field label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+        }
+
+        .filter-field input,
+        .filter-field select {
+            height: 38px;
+            padding: 0 0.85rem;
+            border: 1.5px solid var(--border-color);
+            border-radius: var(--r-sm);
+            font-size: 0.84rem;
+            background: #fff;
+            color: var(--text-primary);
+            font-family: 'DM Sans', sans-serif;
+            transition: border-color 0.18s, box-shadow 0.18s;
+        }
+
+        .filter-field input:focus,
+        .filter-field select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(47, 184, 196, 0.12);
+        }
+
+        .filter-field input[type="text"] {
+            min-width: 220px;
+        }
+
+        /* ── Status tabs ── */
+        .status-tabs {
+            display: flex;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.1rem;
+        }
+
+        .stab {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            height: 34px;
+            padding: 0 1rem;
+            border-radius: 999px;
+            border: 1.5px solid var(--border-color);
+            background: #fff;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text-secondary);
+            transition: all 0.16s;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .stab:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .stab.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 2px 10px rgba(15, 58, 64, 0.22);
+        }
+
+        .stab .stab-count {
+            font-size: 0.68rem;
+            background: rgba(255, 255, 255, 0.22);
+            border-radius: 999px;
+            padding: 0.05rem 0.45rem;
+        }
+
+        .stab:not(.active) .stab-count {
+            background: var(--bg-secondary);
+            color: var(--text-muted);
+        }
+
+        /* ── Alert ── */
+        .alert {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.9rem 1.25rem;
+            border-radius: var(--r-md);
+            margin-bottom: 1.25rem;
+            font-size: 0.88rem;
+            font-weight: 500;
+        }
+
+        .alert--success {
+            background: var(--green-soft);
+            color: var(--green);
+            border: 1px solid var(--green-border);
+        }
+
+        .alert--error {
+            background: var(--red-soft);
+            color: var(--red);
+            border: 1px solid var(--red-border);
+        }
+
+        /* ── Table ── */
+        .data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .data-table thead th {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 0.75rem 1rem;
+            border-bottom: 2px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        .data-table tbody tr {
+            transition: background 0.14s;
+        }
+
+        .data-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .data-table tbody td {
+            padding: 0.9rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.84rem;
+            vertical-align: middle;
+        }
+
+        .data-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        code.inv-num {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.76rem;
+            font-weight: 500;
+            color: var(--primary);
+            background: var(--primary-light);
+            padding: 0.2rem 0.55rem;
+            border-radius: 6px;
+        }
+
+        /* ── Status badges ── */
+        .bill-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 0.28rem 0.7rem;
+            border-radius: 999px;
+        }
+
+        .bill-badge::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+        }
+
+        .bb-paid {
+            background: var(--green-soft);
+            color: var(--green);
+            border: 1px solid var(--green-border);
+        }
+
+        .bb-unpaid {
+            background: var(--red-soft);
+            color: var(--red);
+            border: 1px solid var(--red-border);
+        }
+
+        .bb-pending {
+            background: var(--amber-soft);
+            color: var(--amber);
+            border: 1px solid var(--amber-border);
+        }
+
+        .bb-cancelled {
+            background: var(--slate-soft);
+            color: var(--slate);
+            border: 1px solid var(--slate-border);
+        }
+
+        /* ── Inline action row ── */
+        .action-row {
+            display: flex;
+            gap: 0.4rem;
+            align-items: center;
+        }
+
+        .action-select {
+            height: 33px;
+            padding: 0 0.6rem;
+            border: 1.5px solid var(--border-color);
+            border-radius: var(--r-sm);
+            font-size: 0.78rem;
+            background: #fff;
+            color: var(--text-primary);
+            font-family: 'DM Sans', sans-serif;
+            cursor: pointer;
+            transition: border-color 0.16s;
+        }
+
+        .action-select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .btn-save {
+            height: 33px;
+            padding: 0 0.85rem;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: var(--r-sm);
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            transition: background 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .btn-save:hover {
+            background: var(--primary-mid);
+        }
+
+        .btn-edit-link {
+            height: 33px;
+            padding: 0 0.85rem;
+            border: 1.5px solid var(--border-color);
+            border-radius: var(--r-sm);
+            font-size: 0.78rem;
+            font-weight: 600;
+            background: #fff;
+            color: var(--text-primary);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            transition: all 0.15s;
+        }
+
+        .btn-edit-link:hover {
+            border-color: var(--border-strong);
+            background: var(--bg-secondary);
+        }
+
+        /* ── Empty state ── */
+        .empty-state {
+            padding: 4rem 2rem;
+            text-align: center;
+        }
+
+        .empty-state svg {
+            opacity: 0.18;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin: 0 0 1rem;
+        }
+
+    </style>
 </head>
 
 <body>
@@ -271,6 +752,15 @@ $pending_bills = $stmt->get_result()->fetch_assoc()['pending_bills'];
                     </svg>
                     Manage Services
                 </a>
+                <a href="payroll-reports-admin.php" class="nav-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" />
+                        <line x1="8" y1="21" x2="16" y2="21" />
+                        <line x1="12" y1="17" x2="12" y2="21" />
+                        <path d="M6 8h.01M10 8h4M6 12h12" />
+                    </svg>
+                    Payroll Reports
+                </a>
             <?php endif; ?>
 
             <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-color);">
@@ -295,22 +785,6 @@ $pending_bills = $stmt->get_result()->fetch_assoc()['pending_bills'];
         </div>
     </aside>
 
-    <!-- Logout Modal -->
-    <?php if (isset($_SESSION['user_id'])): ?>
-        <div class="logout-modal-overlay" id="logout-modal-overlay">
-            <div class="logout-modal">
-                <h2>Confirm Logout</h2>
-                <p>Are you sure you want to log out?</p>
-                <div class="logout-modal-buttons">
-                    <button class="logout-btn-confirm" id="logout-confirm">Yes</button>
-                    <button class="logout-btn-cancel" id="logout-cancel">Cancel</button>
-                </div>
-            </div>
-        </div>
-    <?php endif; ?>
-
-    <script src="assets/js/logout-modal.js"></script>
-
     <main class="main-content">
         <header class="admin-header">
             <div class="admin-header-left">
@@ -318,22 +792,6 @@ $pending_bills = $stmt->get_result()->fetch_assoc()['pending_bills'];
                 <p class="header-subtitle">Manage registered users and their access</p>
             </div>
             <div class="admin-header-right">
-                <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
-                    <svg class="moon-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                    </svg>
-                    <svg class="sun-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="5"></circle>
-                        <line x1="12" y1="1" x2="12" y2="3"></line>
-                        <line x1="12" y1="21" x2="12" y2="23"></line>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                        <line x1="1" y1="12" x2="3" y2="12"></line>
-                        <line x1="21" y1="12" x2="23" y2="12"></line>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                    </svg>
-                </button>
                 <div class="avatar-circle">
                     <?php echo strtoupper(substr($admin['first_name'] ?? 'A', 0, 1)); ?>
                 </div>
@@ -379,8 +837,10 @@ $pending_bills = $stmt->get_result()->fetch_assoc()['pending_bills'];
                             <th>User</th>
                             <th>Email</th>
                             <th>Phone</th>
+                            <th>Address</th>
                             <th>Status</th>
-                            <th>Registered</th>
+                            <th>Role</th>
+                            <th>Created</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -396,30 +856,18 @@ $pending_bills = $stmt->get_result()->fetch_assoc()['pending_bills'];
                                     <div class="user-cell">
                                         <div class="avatar-sm">
                                             <?php
-                                            $name = $user['first_name'] ?? $user['fullname'] ?? $user['username'] ?? 'U';
+                                            $name = $user['fullname'] ?? $user['first_name'] . ' ' . $user['last_name'] ?? 'U';
                                             echo strtoupper(substr($name, 0, 1));
                                             ?>
                                         </div>
                                         <div>
-                                            <strong>
-                                                <?php
-                                                if (!empty($user['first_name']) && !empty($user['last_name'])) {
-                                                    echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']);
-                                                } elseif (!empty($user['fullname'])) {
-                                                    echo htmlspecialchars($user['fullname']);
-                                                } else {
-                                                    echo htmlspecialchars($user['username'] ?? 'Unknown');
-                                                }
-                                                ?>
-                                            </strong>
-                                            <?php if (!empty($user['username'])): ?>
-                                                <small>@<?php echo htmlspecialchars($user['username']); ?></small>
-                                            <?php endif; ?>
+                                            <strong><?php echo htmlspecialchars($user['fullname'] ?? ($user['first_name'] . ' ' . $user['last_name'])); ?></strong>
                                         </div>
                                     </div>
                                 </td>
                                 <td><?php echo htmlspecialchars($user['email']); ?></td>
                                 <td><?php echo htmlspecialchars($user['phone'] ?? 'N/A'); ?></td>
+                                <td><?php echo htmlspecialchars($user['address'] ?? 'N/A'); ?></td>
                                 <td>
                                     <?php
                                     $statusClass = match ($user['status']) {
@@ -429,10 +877,9 @@ $pending_bills = $stmt->get_result()->fetch_assoc()['pending_bills'];
                                         default     => 'status--info',
                                     };
                                     ?>
-                                    <span class="status <?php echo $statusClass; ?>">
-                                        <?php echo ucfirst($user['status']); ?>
-                                    </span>
+                                    <span class="status <?php echo $statusClass; ?>"><?php echo ucfirst($user['status']); ?></span>
                                 </td>
+                                <td><?php echo ucfirst($user['role']); ?></td>
                                 <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
                                 <td>
                                     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
@@ -441,55 +888,30 @@ $pending_bills = $stmt->get_result()->fetch_assoc()['pending_bills'];
                                             type="button"
                                             class="btn btn--sm btn--outline user-view-btn"
                                             data-user='<?php echo json_encode([
-                                                            "id"            => $user["id"],
-                                                            "account_number" => $user["account_number"] ?? "N/A",
-                                                            "first_name"    => $user["first_name"] ?? "",
-                                                            "last_name"     => $user["last_name"] ?? "",
-                                                            "fullname"      => $user["fullname"] ?? "",
-                                                            "username"      => $user["username"] ?? "",
-                                                            "email"         => $user["email"] ?? "",
-                                                            "phone"         => $user["phone"] ?? "N/A",
-                                                            "address"       => $user["address"] ?? "",
-                                                            "city"          => $user["city"] ?? "",
-                                                            "state"         => $user["state"] ?? "",
-                                                            "postal_code"   => $user["postal_code"] ?? "",
-                                                            "status"        => $user["status"],
-                                                            "created_at"    => $user["created_at"],
+                                                            "id" => $user["id"],
+                                                            "account_number" => $user["account_number"],
+                                                            "fullname" => $user["fullname"],
+                                                            "email" => $user["email"],
+                                                            "phone" => $user["phone"],
+                                                            "address" => $user["address"],
+                                                            "city" => $user["city"],
+                                                            "state" => $user["state"],
+                                                            "postal_code" => $user["postal_code"],
+                                                            "status" => $user["status"],
+                                                            "role" => $user["role"],
+                                                            "created_at" => $user["created_at"],
+                                                            "username" => $user["username"]
                                                         ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>'>
                                             View
                                         </button>
 
+                                        <!-- Action buttons (Activate/Deactivate/Suspend) -->
                                         <?php if ($user['status'] === 'suspended'): ?>
-                                            <button
-                                                type="button"
-                                                class="btn btn--sm btn--primary admin-action-btn"
-                                                data-action-name="activate"
-                                                data-action-value="<?php echo $user['id']; ?>"
-                                                data-label="Activate User"
-                                                data-message="Are you sure you want to activate this user?">
-                                                Activate
-                                            </button>
+                                            <button type="button" class="btn btn--sm btn--primary admin-action-btn" data-action-name="activate" data-action-value="<?php echo $user['id']; ?>" data-label="Activate User" data-message="Are you sure you want to activate this user?">Activate</button>
                                         <?php else: ?>
-                                            <button
-                                                type="button"
-                                                class="btn btn--sm btn--outline admin-action-btn"
-                                                data-action-name="toggle"
-                                                data-action-value="<?php echo $user['id']; ?>"
-                                                data-label="<?php echo $user['status'] === 'active' ? 'Deactivate User' : 'Activate User'; ?>"
-                                                data-message="Are you sure you want to <?php echo $user['status'] === 'active' ? 'deactivate' : 'activate'; ?> this user?">
-                                                <?php echo $user['status'] === 'active' ? 'Deactivate' : 'Activate'; ?>
-                                            </button>
+                                            <button type="button" class="btn btn--sm btn--outline admin-action-btn" data-action-name="toggle" data-action-value="<?php echo $user['id']; ?>" data-label="Activate User" data-message="Are you sure you want to <?php echo $user['status'] === 'active' ? 'deactivate' : 'activate'; ?> this user?"><?php echo $user['status'] === 'active' ? 'Deactivate' : 'Activate'; ?></button>
 
-                                            <button
-                                                type="button"
-                                                class="btn btn--sm admin-action-btn"
-                                                style="color: var(--danger);"
-                                                data-action-name="suspend"
-                                                data-action-value="<?php echo $user['id']; ?>"
-                                                data-label="Suspend User"
-                                                data-message="Suspend this user? They will not be able to log in.">
-                                                Suspend
-                                            </button>
+                                            <button type="button" class="btn btn--sm admin-action-btn" style="color: var(--danger);" data-action-name="suspend" data-action-value="<?php echo $user['id']; ?>" data-label="Suspend User" data-message="Suspend this user? They will not be able to log in.">Suspend</button>
                                         <?php endif; ?>
                                     </div>
                                 </td>

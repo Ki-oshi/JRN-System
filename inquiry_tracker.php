@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ref_number'])) {
 
 $quickLinks    = [['text' => 'Home', 'url' => 'index.php'], ['text' => 'Services', 'url' => 'services.php'], ['text' => 'Account', 'url' => 'account_page.php']];
 $resourceLinks = [['text' => 'FAQ', 'url' => '#'], ['text' => 'Support', 'url' => '#'], ['text' => 'Contact Us', 'url' => '#']];
-$socialLinks   = [['name' => 'Facebook', 'icon' => 'facebook.svg', 'url' => '#'], ['name' => 'Twitter', 'icon' => 'twitter.svg', 'url' => '#'], ['name' => 'Instagram', 'icon' => 'instagram.svg', 'url' => '#']];
+$socialLinks   = [['name' => 'Facebook', 'icon' => 'facebook.svg', 'url' => 'https://www.facebook.com/JRNBaras'], ['name' => 'Twitter', 'icon' => 'twitter.svg', 'url' => '#'], ['name' => 'Instagram', 'icon' => 'instagram.svg', 'url' => '#']];
 ?>
 <!DOCTYPE html>
 <html lang="en">

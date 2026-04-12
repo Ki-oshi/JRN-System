@@ -196,6 +196,423 @@ $pending_bills = $stmt->get_result()->fetch_assoc()['pending_bills'];
     <link rel="stylesheet" href="assets/css/index-admin.css">
     <link rel="stylesheet" href="assets/css/employees-admin.css">
     <link rel="stylesheet" href="assets/css/logout-modal.css">
+
+    <style>
+        :root {
+            color-scheme: light only !important;
+            --primary: #0F3A40;
+            --primary-light: #1a5560;
+            --primary-xlight: #e8f4f5;
+            --accent: #2fb8c4;
+            --accent-soft: #e0f7fa;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --bg-page: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-secondary: #f1f5f9;
+            --border-color: #e2e8f0;
+            --border-strong: #cbd5e1;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+            --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 14px rgba(0, 0, 0, 0.06);
+            --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.14), 0 8px 24px rgba(0, 0, 0, 0.08);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg-page) !important;
+            color: var(--text-primary) !important;
+            font-family: 'DM Sans', -apple-system, sans-serif !important;
+        }
+
+        /* ── Processing type pills ── */
+        .proc-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            padding: 0.25rem 0.7rem;
+            border-radius: 999px;
+            white-space: nowrap;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .proc-standard {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .proc-priority {
+            background: #ede9fe;
+            color: #5b21b6;
+        }
+
+        .proc-express {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .proc-rush {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .proc-same_day {
+            background: #fce7f3;
+            color: #9d174d;
+        }
+
+        /* ── Secondary filter bar ── */
+        .proc-filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            align-items: center;
+            padding-bottom: 0.85rem;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 0.85rem;
+        }
+
+        .proc-filter-bar .pf-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-right: 0.25rem;
+        }
+
+        .proc-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            height: 32px;
+            padding: 0 0.9rem;
+            border: 1.5px solid var(--border-color);
+            border-radius: 999px;
+            background: #fff;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: all 0.18s ease;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .proc-btn:hover {
+            border-color: var(--primary);
+            background: var(--primary-xlight);
+            color: var(--primary);
+        }
+
+        .proc-btn.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 2px 8px rgba(15, 58, 64, 0.25);
+        }
+
+        .proc-btn .count {
+            font-size: 0.68rem;
+            opacity: 0.75;
+        }
+
+        /* ── Search bar ── */
+        .search-bar {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-bar input {
+            height: 38px;
+            padding: 0 1rem;
+            border: 1.5px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            min-width: 260px;
+            background: #fff;
+            color: var(--text-primary);
+            transition: border-color 0.18s;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(47, 184, 196, 0.12);
+        }
+
+        .search-bar input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-bar button {
+            height: 38px;
+            padding: 0 1.1rem;
+            font-size: 0.83rem;
+            white-space: nowrap;
+        }
+
+        /* ── Alert banners ── */
+        .alert {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.9rem 1.25rem;
+            border-radius: var(--radius-md);
+            margin-bottom: 1.25rem;
+            font-size: 0.88rem;
+            font-weight: 500;
+        }
+
+        .alert::before {
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .alert--success {
+            background: #f0fdf4;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+        }
+
+        .alert--success::before {
+            content: '✓';
+        }
+
+        .alert--error {
+            background: #fff1f2;
+            color: #be123c;
+            border: 1px solid #fecdd3;
+        }
+
+        .alert--error::before {
+            content: '✕';
+        }
+
+        /* ── Status badges ── */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            padding: 0.3rem 0.75rem;
+            border-radius: 999px;
+        }
+
+        .status-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+        }
+
+        .status-pending {
+            background: #fef9ee;
+            color: #b45309;
+            border: 1px solid #fde68a;
+        }
+
+        .status-in_review {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+        }
+
+        .status-completed {
+            background: #f0fdf4;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+        }
+
+        .status-rejected {
+            background: #fff1f2;
+            color: #be123c;
+            border: 1px solid #fecdd3;
+        }
+
+        /* ── Table enhancements ── */
+        .data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .data-table thead th {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            font-size: 0.71rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            padding: 0.75rem 1rem;
+            border-bottom: 2px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        .data-table thead th:first-child {
+            border-radius: var(--radius-sm) 0 0 0;
+        }
+
+        .data-table thead th:last-child {
+            border-radius: 0 var(--radius-sm) 0 0;
+        }
+
+        .data-table tbody tr {
+            transition: background 0.15s;
+        }
+
+        .data-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .data-table tbody td {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.84rem;
+            color: var(--text-primary);
+            vertical-align: middle;
+        }
+
+        .data-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        code.inq-num {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--primary);
+            font-weight: 500;
+            background: var(--primary-xlight);
+            padding: 0.2rem 0.5rem;
+            border-radius: 5px;
+        }
+
+        code.acc-num {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+        }
+
+        .client-cell strong {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .client-cell small {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.73rem;
+            margin-top: 0.1rem;
+        }
+
+        .fee-cell strong {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .fee-cell small {
+            display: block;
+            color: var(--text-muted);
+            text-decoration: line-through;
+            font-size: 0.73rem;
+            margin-top: 0.1rem;
+        }
+
+        .doc-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--primary);
+            background: var(--primary-xlight);
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+        }
+
+        .btn-view {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            height: 32px;
+            padding: 0 0.85rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.15s;
+            border: 1.5px solid var(--border-color);
+            background: #fff;
+            color: var(--text-primary);
+        }
+
+        .btn-view:hover {
+            background: var(--bg-secondary);
+            border-color: var(--border-strong);
+        }
+
+        .btn-update {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            height: 32px;
+            padding: 0 0.85rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            border: none;
+            background: var(--primary);
+            color: #fff;
+            transition: all 0.15s;
+        }
+
+        .btn-update:hover {
+            background: var(--primary-light);
+            box-shadow: 0 2px 8px rgba(15, 58, 64, 0.25);
+        }
+
+        .btn-closed {
+            display: inline-flex;
+            align-items: center;
+            height: 32px;
+            padding: 0 0.85rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            background: #f1f5f9;
+            color: #94a3b8;
+            cursor: not-allowed;
+            border: 1.5px solid #e2e8f0;
+        }
+
+    
+    </style>
 </head>
 
 <body>
@@ -276,6 +693,15 @@ $pending_bills = $stmt->get_result()->fetch_assoc()['pending_bills'];
                     </svg>
                     Manage Services
                 </a>
+                <a href="payroll-reports-admin.php" class="nav-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" />
+                        <line x1="8" y1="21" x2="16" y2="21" />
+                        <line x1="12" y1="17" x2="12" y2="21" />
+                        <path d="M6 8h.01M10 8h4M6 12h12" />
+                    </svg>
+                    Payroll Reports
+                </a>
             <?php endif; ?>
 
             <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-color);">
@@ -323,21 +749,17 @@ $pending_bills = $stmt->get_result()->fetch_assoc()['pending_bills'];
                 <p class="header-subtitle">Manage staff access and permissions</p>
             </div>
             <div class="admin-header-right">
-                <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
-                    <svg class="moon-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                    </svg>
-                    <svg class="sun-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="5"></circle>
-                        <line x1="12" y1="1" x2="12" y2="3"></line>
-                        <line x1="12" y1="21" x2="12" y2="23"></line>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                        <line x1="1" y1="12" x2="3" y2="12"></line>
-                        <line x1="21" y1="12" x2="23" y2="12"></line>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                    </svg>
+                <svg class="sun-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
                 </button>
                 <div class="avatar-circle"><?php echo strtoupper(substr($admin['first_name'] ?? 'A', 0, 1)); ?></div>
             </div>

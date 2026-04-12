@@ -70,7 +70,7 @@ $resourceLinks = [
 ];
 
 $socialLinks = [
-    ['name' => 'Facebook',  'icon' => 'facebook.svg',  'url' => '#'],
+    ['name' => 'Facebook',  'icon' => 'facebook.svg',  'url' => 'https://www.facebook.com/JRNBaras'],
     ['name' => 'Twitter',   'icon' => 'twitter.svg',   'url' => '#'],
     ['name' => 'Instagram', 'icon' => 'instagram.svg', 'url' => '#']
 ];
@@ -718,7 +718,7 @@ foreach ($user_invoices as $inv) {
                         <div id="modal-track-strip" style="display:none;margin-top:4px;padding:10px 12px;background:#f0f9ff;border:1px solid rgba(37,99,235,0.15);border-radius:10px;font-size:0.82rem;color:#1e40af;">
                             <i class="fas fa-map-marker-alt" style="margin-right:6px;"></i>
                             Track this inquiry anytime at
-                            <a id="modal-track-link" href="#" style="color:#1d4ed8;font-weight:700;" target="_blank">inquiry_tracker.php</a>
+                            <a id="modal-track-link" href="#" style="color:#1d4ed8;font-weight:700;" target="_blank">Inquiry Tracker</a>
                         </div>
                     </div>
 

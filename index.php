@@ -83,7 +83,7 @@ $resourceLinks = [
 
 // Social links
 $socialLinks = [
-    ['name' => 'Facebook', 'icon' => 'facebook.svg', 'url' => '#'],
+    ['name' => 'Facebook', 'icon' => 'facebook.svg', 'url' => 'https://www.facebook.com/JRNBaras'],
     ['name' => 'Twitter', 'icon' => 'twitter.svg', 'url' => '#'],
     ['name' => 'Instagram', 'icon' => 'instagram.svg', 'url' => '#']
 ];

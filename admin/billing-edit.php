@@ -196,6 +196,15 @@ $isPaid = ($invoice['status'] === 'paid');
                     </svg>
                     Manage Services
                 </a>
+                <a href="payroll-reports-admin.php" class="nav-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" />
+                        <line x1="8" y1="21" x2="16" y2="21" />
+                        <line x1="12" y1="17" x2="12" y2="21" />
+                        <path d="M6 8h.01M10 8h4M6 12h12" />
+                    </svg>
+                    Payroll Reports
+                </a>
             <?php endif; ?>
             <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-color);">
                 <a href="admin-account.php" class="nav-item">

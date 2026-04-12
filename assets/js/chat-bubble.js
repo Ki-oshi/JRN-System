@@ -159,7 +159,8 @@ function handleOption(option) {
         case "Contact information":
             showBotMessage(
                 `📞 <strong>Get in Touch:</strong><br><br>
-                📧 Email: info@jrnbusiness.com<br>
+                📧 Email: 
+jrndocumentation@gmail.com<br>
                 📱 Phone: (02) 1234-5678<br>
                 📍 Address: Manila, Philippines<br><br>
                 <strong>Business Hours:</strong><br>
