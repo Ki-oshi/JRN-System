@@ -88,6 +88,7 @@ $socialLinks = [
     ['name' => 'Instagram', 'icon' => 'instagram.svg', 'url' => '#']
 ];
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 
