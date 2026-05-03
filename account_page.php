@@ -158,6 +158,188 @@ foreach ($user_invoices as $inv) {
     <link rel="stylesheet" href="assets/css/account-page.css" />
     <link rel="stylesheet" href="assets/css/password-change-modal.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        /* ══ FOLLOW-UP UPLOAD ══ */
+        .followup-upload-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .followup-info-banner {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            background: #f0f9ff;
+            border: 1px solid rgba(99, 102, 241, 0.18);
+            border-radius: 8px;
+            padding: 10px 13px;
+            font-size: 0.8rem;
+            color: #3730a3;
+            line-height: 1.5;
+        }
+
+        .followup-info-banner i {
+            margin-top: 2px;
+            flex-shrink: 0;
+            color: #6366f1;
+        }
+
+        .followup-note-row label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 5px;
+        }
+
+        .followup-note-row input[type="text"] {
+            width: 100%;
+            padding: 8px 11px;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: #111827;
+            outline: none;
+            transition: border-color .2s;
+            box-sizing: border-box;
+        }
+
+        .followup-note-row input[type="text"]:focus {
+            border-color: #6366f1;
+        }
+
+        .followup-drop-zone {
+            border: 2px dashed #d1d5db;
+            border-radius: 10px;
+            padding: 22px 16px;
+            text-align: center;
+            cursor: pointer;
+            background: #fafafa;
+            transition: border-color .2s, background .2s;
+        }
+
+        .followup-drop-zone.dragover {
+            border-color: #6366f1;
+            background: #f5f3ff;
+        }
+
+        .followup-drop-inner {
+            pointer-events: none;
+        }
+
+        .followup-drop-icon {
+            font-size: 1.8rem;
+            color: #a5b4fc;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .followup-drop-zone p {
+            font-size: 0.85rem;
+            color: #374151;
+            margin: 0 0 4px;
+        }
+
+        .followup-drop-zone small {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
+
+        .followup-browse-link {
+            color: #6366f1;
+            font-weight: 700;
+            cursor: pointer;
+            pointer-events: all;
+            text-decoration: underline dotted;
+        }
+
+        .followup-browse-link:hover {
+            color: #4f46e5;
+        }
+
+        .followup-file-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .followup-file-item {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 8px 11px;
+            font-size: 0.8rem;
+            color: #374151;
+        }
+
+        .followup-file-item i {
+            color: #6366f1;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+
+        .followup-file-name {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-weight: 500;
+        }
+
+        .followup-file-size {
+            color: #9ca3af;
+            flex-shrink: 0;
+        }
+
+        .followup-file-remove {
+            background: none;
+            border: none;
+            color: #dc2626;
+            cursor: pointer;
+            padding: 0 2px;
+            font-size: 0.75rem;
+            opacity: 0.7;
+            flex-shrink: 0;
+        }
+
+        .followup-file-remove:hover {
+            opacity: 1;
+        }
+
+        .followup-submit-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .followup-status-msg {
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .followup-status-msg.success {
+            color: #16a34a;
+        }
+
+        .followup-status-msg.error {
+            color: #dc2626;
+        }
+
+        .followup-status-msg.loading {
+            color: #6366f1;
+        }
+    </style>
 </head>
 
 <body>
@@ -714,6 +896,45 @@ foreach ($user_invoices as $inv) {
                             <div id="modal-attached-docs"></div>
                         </div>
 
+                        <!-- ══ FOLLOW-UP UPLOAD ══ -->
+                        <div class="inquiry-detail-section" id="modal-upload-section" style="display:none;">
+                            <div class="inquiry-detail-section-label">
+                                <i class="fas fa-paperclip" style="margin-right:5px;color:#6366f1;"></i>
+                                Submit Additional / Missing Files
+                            </div>
+                            <div class="followup-upload-wrap">
+                                <div class="followup-info-banner">
+                                    <i class="fas fa-info-circle"></i>
+                                    Upload any missing documents or files requested by our team. We'll be notified immediately.
+                                </div>
+                                <div class="followup-note-row">
+                                    <label for="followupNote">Brief note <span style="color:#9ca3af;font-weight:400;">(optional)</span></label>
+                                    <input type="text" id="followupNote" maxlength="200"
+                                        placeholder="e.g. Uploading the missing BIR Form 2303…" />
+                                </div>
+                                <div class="followup-drop-zone" id="followupDropZone">
+                                    <div class="followup-drop-inner">
+                                        <i class="fas fa-cloud-upload-alt followup-drop-icon"></i>
+                                        <p>Drag &amp; drop files here, or
+                                            <label for="followupFileInput" class="followup-browse-link">browse</label>
+                                        </p>
+                                        <small>PDF · JPG · PNG · DOCX &nbsp;—&nbsp; max 10 MB per file</small>
+                                    </div>
+                                    <input type="file" id="followupFileInput" multiple
+                                        accept=".pdf,.jpg,.jpeg,.png,.docx" style="display:none;" />
+                                </div>
+
+                                <ul class="followup-file-list" id="followupFileList"></ul>
+
+                                <div class="followup-submit-row">
+                                    <button type="button" class="btn-primary btn-xs" id="followupSubmitBtn" disabled>
+                                        <i class="fas fa-paper-plane"></i> Submit Files
+                                    </button>
+                                    <span id="followupStatusMsg" class="followup-status-msg"></span>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Track link -->
                         <div id="modal-track-strip" style="display:none;margin-top:4px;padding:10px 12px;background:#f0f9ff;border:1px solid rgba(37,99,235,0.15);border-radius:10px;font-size:0.82rem;color:#1e40af;">
                             <i class="fas fa-map-marker-alt" style="margin-right:6px;"></i>
@@ -1107,6 +1328,11 @@ foreach ($user_invoices as $inv) {
                     docsSection.style.display = 'block';
                 });
 
+            // Upload section — show only for pending / in_review
+            const uploadSection = document.getElementById('modal-upload-section');
+            uploadSection.style.display = ['pending', 'in_review'].includes(srv.status) ? 'block' : 'none';
+            resetFollowupUpload(srv.id);
+
             // Show modal
             inquiryModal.style.display = 'flex';
             document.body.style.overflow = 'hidden';
@@ -1127,6 +1353,142 @@ foreach ($user_invoices as $inv) {
         // Close on overlay click
         inquiryModal?.addEventListener('click', function(e) {
             if (e.target === inquiryModal) closeInquiryModal();
+        });
+
+
+        // ══════════════════════════════════════════════
+        //  FOLLOW-UP FILE UPLOAD
+        // ══════════════════════════════════════════════
+        let followupFiles = [];
+        let currentFollowupInquiryId = null;
+
+        function resetFollowupUpload(inquiryId) {
+            currentFollowupInquiryId = inquiryId;
+            followupFiles = [];
+            renderFollowupFileList();
+            document.getElementById('followupNote').value = '';
+            document.getElementById('followupStatusMsg').textContent = '';
+            document.getElementById('followupStatusMsg').className = 'followup-status-msg';
+            document.getElementById('followupFileInput').value = '';
+        }
+
+        function renderFollowupFileList() {
+            const list = document.getElementById('followupFileList');
+            const submitBtn = document.getElementById('followupSubmitBtn');
+            list.innerHTML = followupFiles.map((f, i) => {
+                const ext = f.name.split('.').pop().toUpperCase();
+                const icon = ext === 'PDF' ? 'fa-file-pdf' : ['JPG', 'JPEG', 'PNG'].includes(ext) ? 'fa-file-image' : 'fa-file-word';
+                const sizeKb = (f.size / 1024).toFixed(1);
+                return `<li class="followup-file-item">
+            <i class="fas ${icon}"></i>
+            <span class="followup-file-name" title="${f.name}">${f.name}</span>
+            <span class="followup-file-size">${sizeKb} KB</span>
+            <button class="followup-file-remove" onclick="removeFollowupFile(${i})" title="Remove">
+                <i class="fas fa-times"></i>
+            </button>
+        </li>`;
+            }).join('');
+            submitBtn.disabled = followupFiles.length === 0;
+        }
+
+        function removeFollowupFile(index) {
+            followupFiles.splice(index, 1);
+            renderFollowupFileList();
+        }
+
+        function addFollowupFiles(newFiles) {
+            const allowed = ['pdf', 'jpg', 'jpeg', 'png', 'docx'];
+            const maxSize = 10 * 1024 * 1024;
+            const statusMsg = document.getElementById('followupStatusMsg');
+            const errors = [];
+
+            Array.from(newFiles).forEach(f => {
+                const ext = f.name.split('.').pop().toLowerCase();
+                if (!allowed.includes(ext)) {
+                    errors.push(`"${f.name}" — unsupported type.`);
+                    return;
+                }
+                if (f.size > maxSize) {
+                    errors.push(`"${f.name}" — exceeds 10 MB.`);
+                    return;
+                }
+                if (followupFiles.some(e => e.name === f.name && e.size === f.size)) return; // dedupe
+                followupFiles.push(f);
+            });
+
+            if (errors.length) {
+                statusMsg.textContent = errors[0];
+                statusMsg.className = 'followup-status-msg error';
+            } else {
+                statusMsg.textContent = '';
+                statusMsg.className = 'followup-status-msg';
+            }
+            renderFollowupFileList();
+        }
+
+        // File input change
+        document.getElementById('followupFileInput')?.addEventListener('change', function() {
+            addFollowupFiles(this.files);
+            this.value = '';
+        });
+
+        // Drag & drop
+        const dropZone = document.getElementById('followupDropZone');
+        dropZone?.addEventListener('click', () => document.getElementById('followupFileInput').click());
+        dropZone?.addEventListener('dragover', e => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone?.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone?.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            addFollowupFiles(e.dataTransfer.files);
+        });
+
+        // Submit
+        document.getElementById('followupSubmitBtn')?.addEventListener('click', async () => {
+            if (!followupFiles.length || !currentFollowupInquiryId) return;
+
+            const submitBtn = document.getElementById('followupSubmitBtn');
+            const statusMsg = document.getElementById('followupStatusMsg');
+
+            const formData = new FormData();
+            formData.append('inquiry_id', currentFollowupInquiryId);
+            formData.append('note', document.getElementById('followupNote').value.trim());
+            followupFiles.forEach(f => formData.append('files[]', f));
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading…';
+            statusMsg.textContent = 'Sending files…';
+            statusMsg.className = 'followup-status-msg loading';
+
+            try {
+                const res = await fetch('upload_followup_document.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const json = await res.json();
+                if (json.success) {
+                    statusMsg.textContent = `✓ ${json.message || 'Files submitted successfully!'}`;
+                    statusMsg.className = 'followup-status-msg success';
+                    followupFiles = [];
+                    renderFollowupFileList();
+                    document.getElementById('followupNote').value = '';
+                    submitBtn.innerHTML = '<i class="fas fa-check"></i> Submitted';
+                    // Refresh attached docs list
+                    setTimeout(() => {
+                        document.querySelector(`.view-inquiry-btn[data-inquiry-id="${currentFollowupInquiryId}"]`)?.click();
+                    }, 1800);
+                } else {
+                    throw new Error(json.message || 'Upload failed.');
+                }
+            } catch (err) {
+                statusMsg.textContent = err.message;
+                statusMsg.className = 'followup-status-msg error';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Files';
+            }
         });
 
         // ══════════════════════════════════════════════
